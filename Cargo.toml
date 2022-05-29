@@ -1,0 +1,17 @@
+[package]
+name = "enumeration"
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+description = "An extension to rust enum"
+homepage = "https://github.com/feois/rust-enumeration"
+repository = "https://github.com/feois/rust-enumeration"
+keyword = ["enum", "enumeration"]
+categories = ["development-tools", "rust-patterns"]
+
+[badges]
+maintenance = { status = "actively-developed" }
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
