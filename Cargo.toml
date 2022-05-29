@@ -6,7 +6,7 @@ license = "MIT"
 description = "An extension to rust enum"
 homepage = "https://github.com/feois/rust-enumeration"
 repository = "https://github.com/feois/rust-enumeration"
-keyword = ["enum", "enumeration"]
+keywords = ["enum", "enumeration"]
 categories = ["development-tools", "rust-patterns"]
 
 [badges]
