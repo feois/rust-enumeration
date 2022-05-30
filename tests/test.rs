@@ -35,3 +35,20 @@ fn test_associated_constant_values() {
 fn test_string() {
     assert_eq!(*Str::HelloWorld.value(), "Hello world!");
 }
+
+#[test]
+fn test_variant() {
+    let vec: Vec<Variant<_>> = vec![Test::X.into(), Str::HelloWorld.into()];
+    
+    assert_eq!(vec[0].cast::<Test>(), Ok(Test::X));
+    assert_eq!(vec[1].cast::<Str>(), Ok(Str::HelloWorld));
+    assert!(vec[1].cast::<Test>().is_err());
+}
+
+#[test]
+fn test_variant_with() {
+    let vec: Vec<VariantWith<_, _>> = vec![Test::X.into(), Test::Z.into()];
+    
+    assert_eq!(vec[0].value::<Test>().map(|&x| x), Ok(111));
+    assert_eq!(vec[1].value::<Test>().map(|&x| x), Ok(777));
+}
