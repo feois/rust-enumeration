@@ -57,6 +57,7 @@ pub trait Enumeration:
     + Eq
     + PartialOrd
     + Ord
+    + 'static
 where
     Self::AssociatedValueType: 'static + Debug,
     Self::Index: Debug + Display,
