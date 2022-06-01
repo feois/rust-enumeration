@@ -188,24 +188,25 @@ impl<T: Debug> Variant<T> {
 /// 
 /// let mut vec = vec![Color::Red.into(), Color::Blue.into()];
 /// 
-/// assert_eq!(vec[0].value(), Ok("#FF0000"));
+/// assert_eq!(vec[0].value(), "#FF0000");
 /// 
 /// vec.push(Foo::Bar.into()); // compile error
 /// ```
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-pub struct VariantWith<T: Debug, U> {
+pub struct VariantWith<T: Debug, U: 'static> {
     type_id: TypeId,
     index: T,
-    phantom: PhantomData<U>
+    value: &'static U,
+    phantom: PhantomData<U>,
 }
 
 impl<T: Enumeration> From<T> for VariantWith<T::Index, T::AssociatedValueType> {
     fn from(e: T) -> Self {
-        Self { type_id: TypeId::of::<T>(), index: e.to_index(), phantom: PhantomData }
+        Self { type_id: TypeId::of::<T>(), index: e.to_index(), value: e.value(), phantom: PhantomData }
     }
 }
 
-impl<T: Debug, U> VariantWith<T, U> {
+impl<T: Debug, U: 'static> VariantWith<T, U> {
     /// Constructs [VariantWith] with [Enumeration]
     pub fn new<E: Enumeration>(e: E) -> VariantWith<E::Index, E::AssociatedValueType> {
         VariantWith::from(e)
@@ -221,6 +222,11 @@ impl<T: Debug, U> VariantWith<T, U> {
         self.index
     }
     
+    /// Returns the associated constant value without casting.
+    pub fn value(self) -> &'static U {
+        self.value
+    }
+    
     /// Try casting to the given generic parameter
     pub fn cast<E: Enumeration<Index = T, AssociatedValueType = U>>(self) -> Result<E, CastError<E>> {
         if TypeId::of::<E>() == self.type_id {
@@ -229,13 +235,6 @@ impl<T: Debug, U> VariantWith<T, U> {
         else {
             Err(CastError(PhantomData))
         }
-    }
-    
-    /// Convenient access to [Enumeration::value]
-    /// 
-    /// Similar to `self.cast()?.value()`
-    pub fn value<E: Enumeration<Index = T, AssociatedValueType = U>>(self) -> Result<&'static U, CastError<E>> {
-        self.cast::<E>().map(|e| e.value())
     }
 }
 

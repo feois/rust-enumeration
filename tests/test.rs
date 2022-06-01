@@ -49,6 +49,6 @@ fn test_variant() {
 fn test_variant_with() {
     let vec: Vec<VariantWith<_, _>> = vec![Test::X.into(), Test::Z.into()];
     
-    assert_eq!(vec[0].value::<Test>().map(|&x| x), Ok(111));
-    assert_eq!(vec[1].value::<Test>().map(|&x| x), Ok(777));
+    assert_eq!(*vec[0].value(), 111);
+    assert_eq!(*vec[1].value(), 777);
 }
