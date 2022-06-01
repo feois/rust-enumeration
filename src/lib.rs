@@ -197,12 +197,11 @@ pub struct VariantWith<T: Debug, U: 'static> {
     type_id: TypeId,
     index: T,
     value: &'static U,
-    phantom: PhantomData<U>,
 }
 
 impl<T: Enumeration> From<T> for VariantWith<T::Index, T::AssociatedValueType> {
     fn from(e: T) -> Self {
-        Self { type_id: TypeId::of::<T>(), index: e.to_index(), value: e.value(), phantom: PhantomData }
+        Self { type_id: TypeId::of::<T>(), index: e.to_index(), value: e.value() }
     }
 }
 
