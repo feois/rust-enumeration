@@ -89,6 +89,7 @@ where
     /// Get the reference to the static associated constant value of the variant or the default constant value [Self::DEFAULT_VARIANT_ASSOCIATED_VALUE].
     fn value(&self) -> &'static Self::AssociatedValueType;
 
+    #[inline(always)]
     /// Cast index to the respective enumeration.
     ///
     /// # Errors
@@ -98,6 +99,7 @@ where
         Self::try_from(index)
     }
 
+    #[inline(always)]
     /// Cast this enumeration to respective index.
     fn to_index(self) -> Self::Index {
         self.into()
@@ -473,7 +475,8 @@ macro_rules! enumerate {
             const VARIANT_COUNT: $t = $crate::count!($($variant)*);
             $(#[$default_attr])*
             const DEFAULT_VARIANT_ASSOCIATED_VALUE: Option<Self::AssociatedValueType> = $crate::option!($($default_value)?);
-
+            
+            #[inline]
             fn value(&self) -> &'static Self::AssociatedValueType {
                 $crate::validate!($associated_value_type, $($default_value)?, $(($($attr)* : $variant : $($associated_value)?))*);
 
@@ -494,6 +497,7 @@ macro_rules! impl_try_from_into {
         impl std::convert::TryFrom<$t> for $name {
             type Error = $crate::OutOfRangeError<$name>;
 
+            #[inline(always)]
             fn try_from(value: $t) -> Result<Self, $crate::OutOfRangeError<$name>> {
                 #[allow(unused_comparisons)]
                 if value >= 0 && value < <Self as $crate::Enumeration>::VARIANT_COUNT {
@@ -505,6 +509,7 @@ macro_rules! impl_try_from_into {
         }
 
         impl Into<$t> for $name {
+            #[inline(always)]
             fn into(self) -> $t {
                 unsafe { std::mem::transmute(self) }
             }
