@@ -1,6 +1,7 @@
 use std::any::{Any, TypeId};
 
 use enumeration::prelude::*;
+use enumeration::variant::*;
 
 enumerate!(Test(u8; i32 = 99)
     X = 111
