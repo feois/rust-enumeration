@@ -11,7 +11,7 @@
 
 /// Convenience re-export of common members
 pub mod prelude {
-    pub use super::{enumerate, Enumeration, Variant, VariantWith};
+    pub use super::{enumerate, Enumeration, Variant, VariantWith, IteratorHelper, OutOfRangeError, CastError};
 }
 
 use std::any::{TypeId, type_name};
@@ -24,6 +24,7 @@ use std::marker::PhantomData;
 pub struct OutOfRangeError<T: Enumeration>(pub T::Index);
 
 impl<T: Enumeration> Display for OutOfRangeError<T> {
+    #[inline(always)]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
@@ -41,6 +42,7 @@ impl<T: Enumeration + Debug> std::error::Error for OutOfRangeError<T> {}
 pub struct CastError<T: Enumeration>(PhantomData<T>);
 
 impl<T: Enumeration> Display for CastError<T> {
+    #[inline(always)]
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "Unable to cast from enumeration type from {}", type_name::<T>())
     }
@@ -86,8 +88,16 @@ where
     /// Default for associated constant value.
     const DEFAULT_VARIANT_ASSOCIATED_VALUE: Option<Self::AssociatedValueType>;
 
+    #[inline(always)]
+    /// Same as VARIANT_COUNT
+    fn count() -> Self::Index { Self::VARIANT_COUNT }
+
+    #[inline(always)]
+    /// VARIANT_COUNT as usize
+    fn len() -> usize where Self::Index: Into<usize> { Self::count().into() }
+
     /// Get the reference to the static associated constant value of the variant or the default constant value [Self::DEFAULT_VARIANT_ASSOCIATED_VALUE].
-    fn value(&self) -> &'static Self::AssociatedValueType;
+    fn value(self) -> &'static Self::AssociatedValueType;
 
     #[inline(always)]
     /// Cast index to the respective enumeration.
@@ -99,12 +109,38 @@ where
         Self::try_from(index)
     }
 
+    /// Cast index to the respective enumeration without checking
+    unsafe fn variant_unchecked(index: Self::Index) -> Self;
+
     #[inline(always)]
     /// Cast this enumeration to respective index.
     fn to_index(self) -> Self::Index {
         self.into()
     }
 }
+
+/// Iterator helper
+pub trait IteratorHelper where Self: Sized {
+    #[inline(always)]
+    /// Convert index into variant
+    fn variants<E: Enumeration>(self) -> impl Iterator<Item = Result<E, E::Error>> where Self: IntoIterator<Item = E::Index> {
+        self.into_iter().map(E::variant)
+    }
+
+    #[inline(always)]
+    /// Convert index into variant, panic upon error
+    fn variants_unwrap<E: Enumeration>(self) -> impl Iterator<Item = E> where Self: IntoIterator<Item = E::Index> {
+        self.variants().map(Result::unwrap)
+    }
+
+    #[inline(always)]
+    /// Convert index into variant without checking
+    unsafe fn variants_unchecked<E: Enumeration>(self) -> impl Iterator<Item = E> where Self: IntoIterator<Item = E::Index> {
+        self.into_iter().map(|i| unsafe { E::variant_unchecked(i) })
+    }
+}
+
+impl<T: Iterator> IteratorHelper for T {}
 
 /// Provides runtime specialized representation of [Enumeration].
 /// 
@@ -136,27 +172,32 @@ pub struct Variant<T: Debug> {
 }
 
 impl<T: Enumeration> From<T> for Variant<T::Index> {
+    #[inline(always)]
     fn from(e: T) -> Self {
         Self { type_id: TypeId::of::<T>(), index: e.to_index() }
     }
 }
 
 impl<T: Debug> Variant<T> {
+    #[inline(always)]
     /// Construct [Variant] with [Enumeration]
     pub fn new<E: Enumeration>(e: E) -> Variant<E::Index> {
         Variant::from(e)
     }
     
+    #[inline(always)]
     /// Returns the type id of the enumeration.
     pub fn type_id(self) -> TypeId {
         self.type_id
     }
     
+    #[inline(always)]
     /// Returns the index of the enumeration.
     pub fn index(self) -> T {
         self.index
     }
     
+    #[inline(always)]
     /// Try casting to the given generic parameter
     pub fn cast<E: Enumeration<Index = T>>(self) -> Result<E, CastError<E>> {
         if TypeId::of::<E>() == self.type_id {
@@ -202,32 +243,38 @@ pub struct VariantWith<T: Debug, U: 'static> {
 }
 
 impl<T: Enumeration> From<T> for VariantWith<T::Index, T::AssociatedValueType> {
+    #[inline(always)]
     fn from(e: T) -> Self {
         Self { type_id: TypeId::of::<T>(), index: e.to_index(), value: e.value() }
     }
 }
 
 impl<T: Debug, U: 'static> VariantWith<T, U> {
+    #[inline(always)]
     /// Constructs [VariantWith] with [Enumeration]
     pub fn new<E: Enumeration>(e: E) -> VariantWith<E::Index, E::AssociatedValueType> {
         VariantWith::from(e)
     }
     
+    #[inline(always)]
     /// Returns the type id.
     pub fn type_id(self) -> TypeId {
         self.type_id
     }
     
+    #[inline(always)]
     /// Returns the index.
     pub fn index(self) -> T {
         self.index
     }
     
+    #[inline(always)]
     /// Returns the associated constant value without casting.
     pub fn value(self) -> &'static U {
         self.value
     }
     
+    #[inline(always)]
     /// Try casting to the given generic parameter
     pub fn cast<E: Enumeration<Index = T, AssociatedValueType = U>>(self) -> Result<E, CastError<E>> {
         if TypeId::of::<E>() == self.type_id {
@@ -332,7 +379,7 @@ impl<T: Debug, U: 'static> VariantWith<T, U> {
 /// impl Enumeration for Foo {
 /// #     type Index = u8; type AssociatedValueType = i32; const VARIANT_COUNT: u8 = 2; const DEFAULT_VARIANT_ASSOCIATED_VALUE: Option<i32> = None;
 /// #
-///     fn value(&self) -> &'static i32 {
+///     fn value(self) -> &'static i32 {
 /// #         #[allow(non_upper_case_globals)]
 ///         const Bar: i32 = 10;
 /// #         #[allow(non_upper_case_globals)]
@@ -342,6 +389,10 @@ impl<T: Debug, U: 'static> VariantWith<T, U> {
 ///             Foo::Bar => &Bar,
 ///             Foo::Baz => &Baz,
 ///         }
+///     }
+///     
+///     unsafe fn variant_unchecked(index: Self::Index) -> Self {
+///         std::mem::transmute(index)    
 ///     }
 /// }
 ///
@@ -376,7 +427,7 @@ impl<T: Debug, U: 'static> VariantWith<T, U> {
 /// #     type Index = u8; type AssociatedValueType = i32; const VARIANT_COUNT: u8 = 2;
 ///     const DEFAULT_VARIANT_ASSOCIATED_VALUE: Option<i32> = Some(20);
 ///
-///     fn value(&self) -> &'static i32 {
+///     fn value(self) -> &'static i32 {
 /// #         #[allow(non_upper_case_globals)]
 ///         const Bar: Option<i32> = None;
 /// #         #[allow(non_upper_case_globals)]
@@ -386,6 +437,10 @@ impl<T: Debug, U: 'static> VariantWith<T, U> {
 ///             Foo::Bar => Bar.as_ref().or(Self::DEFAULT_VARIANT_ASSOCIATED_VALUE.as_ref()).unwrap(),
 ///             Foo::Baz => Baz.as_ref().or(Self::DEFAULT_VARIANT_ASSOCIATED_VALUE.as_ref()).unwrap(),
 ///         }
+///     }
+///     
+///     unsafe fn variant_unchecked(index: Self::Index) -> Self {
+///         std::mem::transmute(index)    
 ///     }
 /// }
 ///
@@ -458,7 +513,7 @@ macro_rules! enumerate {
     };
 
     ($(#[$enum_attr:meta])* $visibility:vis enum $name:ident ($t:ident; $(#[$default_attr:meta])* $associated_value_type:ty $(= $default_value:expr)?) $($(#[$attr:meta])* $variant:ident $(= $associated_value:expr)? $(,)? $(;)?)*) => {
-        $crate::enumerate!($(#[$enum_attr])* $visibility $name ($t; $(#[$default_attr])* $associated_value_type $(= $default_value)?) $($(#[$attr])* $variant = $(= $associated_value)?)*);
+        $crate::enumerate!($(#[$enum_attr])* $visibility $name ($t; $(#[$default_attr])* $associated_value_type $(= $default_value)?) $($(#[$attr])* $variant $(= $associated_value)?)*);
     };
 
     ($(#[$enum_attr:meta])* $visibility:vis $name:ident ($t:ident; $(#[$default_attr:meta])* $associated_value_type:ty $(= $default_value:expr)?) $($(#[$attr:meta])* $variant:ident $(= $associated_value:expr)? $(,)? $(;)?)*) => {
@@ -476,13 +531,20 @@ macro_rules! enumerate {
             $(#[$default_attr])*
             const DEFAULT_VARIANT_ASSOCIATED_VALUE: Option<Self::AssociatedValueType> = $crate::option!($($default_value)?);
             
-            #[inline]
-            fn value(&self) -> &'static Self::AssociatedValueType {
+            #[inline(always)]
+            fn value(self) -> &'static Self::AssociatedValueType {
                 $crate::validate!($associated_value_type, $($default_value)?, $(($($attr)* : $variant : $($associated_value)?))*);
 
                 match self {
                     $(Self::$variant => $variant.as_ref().or(Self::DEFAULT_VARIANT_ASSOCIATED_VALUE.as_ref()).unwrap(),)*
                 }
+            }
+
+            #[inline(always)]
+            unsafe fn variant_unchecked(index: Self::Index) -> Self {
+                debug_assert!(index >= 0 && index < Self::VARIANT_COUNT);
+
+                std::mem::transmute(index)
             }
         }
 

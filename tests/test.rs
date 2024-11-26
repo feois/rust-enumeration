@@ -1,3 +1,5 @@
+use std::any::{Any, TypeId};
+
 use enumeration::prelude::*;
 
 enumerate!(Test(u8; i32 = 99)
@@ -51,4 +53,58 @@ fn test_variant_with() {
     
     assert_eq!(*vec[0].value(), 111);
     assert_eq!(*vec[1].value(), 777);
+}
+
+#[test]
+fn test_iter() {
+    let mut iter = (0..Test::VARIANT_COUNT).variants();
+
+    assert_eq!(iter.next(), Some(Ok(Test::X)));
+    assert_eq!(iter.next(), Some(Ok(Test::Y)));
+    assert_eq!(iter.next(), Some(Ok(Test::Z)));
+    assert_eq!(iter.next(), None);
+
+    let mut iter = (Test::VARIANT_COUNT..=Test::VARIANT_COUNT).variants::<Test>();
+
+    assert_eq!(iter.next(), Some(Err(OutOfRangeError(Test::VARIANT_COUNT))));
+}
+
+#[test]
+fn test_iter_unchecked() {
+    let mut iter = unsafe { (0..Test::VARIANT_COUNT).variants_unchecked() };
+
+    assert_eq!(iter.next(), Some(Test::X));
+    assert_eq!(iter.next(), Some(Test::Y));
+    assert_eq!(iter.next(), Some(Test::Z));
+    assert_eq!(iter.next(), None);
+}
+
+#[cfg(debug_assertions)]
+#[test]
+#[should_panic]
+fn test_iter_unchecked_fail() {
+    (Test::VARIANT_COUNT..=Test::VARIANT_COUNT).variants_unwrap::<Test>().next();
+}
+
+#[test]
+fn test_iter_unwrap() {
+    let mut iter = (0..Test::VARIANT_COUNT).variants_unwrap();
+
+    assert_eq!(iter.next(), Some(Test::X));
+    assert_eq!(iter.next(), Some(Test::Y));
+    assert_eq!(iter.next(), Some(Test::Z));
+    assert_eq!(iter.next(), None);
+}
+
+#[test]
+#[should_panic]
+fn test_iter_unwrap_fail() {
+    (Test::VARIANT_COUNT..=Test::VARIANT_COUNT).variants_unwrap::<Test>().next();
+}
+
+#[test]
+fn test_len() {
+    assert_eq!(Test::count(), Test::VARIANT_COUNT);
+    assert_eq!(Test::len(), Test::count() as usize);
+    assert_eq!(Test::len().type_id(), TypeId::of::<usize>())
 }
