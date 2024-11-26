@@ -1,3 +1,6 @@
+#![cfg_attr(feature = "map", allow(incomplete_features))]
+#![cfg_attr(feature = "map", feature(generic_const_exprs))]
+
 //! This modules provides utilities to the crate
 
 use crate::prelude::*;
@@ -43,4 +46,3 @@ pub trait IteratorHelper where Self: Sized {
 }
 
 impl<T: Iterator> IteratorHelper for T {}
-

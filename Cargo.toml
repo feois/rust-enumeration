@@ -1,6 +1,6 @@
 [package]
 name = "enumeration"
-version = "2.2.0"
+version = "3.0.0"
 edition = "2021"
 license = "MIT"
 description = "An extension to rust enum"
@@ -14,4 +14,5 @@ maintenance = { status = "actively-developed" }
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
-[dependencies]
+[features]
+map = [] # WIP

@@ -26,7 +26,7 @@ impl<T: Enumeration> std::error::Error for CastError<T> {}
 /// 
 /// # Examples
 /// ```
-/// # use enumeration::prelude::*;
+/// # use enumeration::{prelude::*, variant::*};
 /// enumerate!(Foo(u8)
 ///     Bar
 ///     Baz

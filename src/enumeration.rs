@@ -57,9 +57,6 @@ where
     /// The number of variants of this enumeration.
     const VARIANT_COUNT: Self::Index;
 
-    /// Default for associated constant value.
-    const DEFAULT_VARIANT_ASSOCIATED_VALUE: Option<Self::AssociatedValueType>;
-
     #[inline(always)]
     /// Same as VARIANT_COUNT
     fn count() -> Self::Index { Self::VARIANT_COUNT }
@@ -178,7 +175,7 @@ where
 /// produces
 ///
 /// ```
-/// # use enumeration::Enumeration;
+/// # use enumeration::prelude::*;
 /// # #[derive(Copy, Clone, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]
 /// enum Foo {
 ///     Bar,
@@ -188,17 +185,17 @@ where
 /// # enumeration::impl_try_from_into!(u8, Foo);
 /// #
 /// impl Enumeration for Foo {
-/// #     type Index = u8; type AssociatedValueType = i32; const VARIANT_COUNT: u8 = 2; const DEFAULT_VARIANT_ASSOCIATED_VALUE: Option<i32> = None;
+/// #     type Index = u8; type AssociatedValueType = i32; const VARIANT_COUNT: u8 = 2;
 /// #
 ///     fn value(self) -> &'static i32 {
 /// #         #[allow(non_upper_case_globals)]
-///         const Bar: i32 = 10;
+///         const Bar: &'static i32 = &10;
 /// #         #[allow(non_upper_case_globals)]
-///         const Baz: i32 = 20;
+///         const Baz: &'static i32 = &20;
 ///         
 ///         match self {
-///             Foo::Bar => &Bar,
-///             Foo::Baz => &Baz,
+///             Foo::Bar => Bar,
+///             Foo::Baz => Baz,
 ///         }
 ///     }
 ///     
@@ -225,7 +222,7 @@ where
 /// produces
 ///
 /// ```
-/// # use enumeration::Enumeration;
+/// # use enumeration::prelude::*;
 /// # #[derive(Copy, Clone, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]
 /// enum Foo {
 ///     Bar,
@@ -236,17 +233,17 @@ where
 /// #
 /// impl Enumeration for Foo {
 /// #     type Index = u8; type AssociatedValueType = i32; const VARIANT_COUNT: u8 = 2;
-///     const DEFAULT_VARIANT_ASSOCIATED_VALUE: Option<i32> = Some(20);
 ///
 ///     fn value(self) -> &'static i32 {
+///         const DEFAULT_VARIANT_ASSOCIATED_VALUE: i32 = 20;
 /// #         #[allow(non_upper_case_globals)]
-///         const Bar: Option<i32> = None;
+///         const Bar: &'static i32 = &DEFAULT_VARIANT_ASSOCIATED_VALUE;
 /// #         #[allow(non_upper_case_globals)]
-///         const Baz: Option<i32> = Some(10);
+///         const Baz: &'static i32 = &10;
 ///         
 ///         match self {
-///             Foo::Bar => Bar.as_ref().or(Self::DEFAULT_VARIANT_ASSOCIATED_VALUE.as_ref()).unwrap(),
-///             Foo::Baz => Baz.as_ref().or(Self::DEFAULT_VARIANT_ASSOCIATED_VALUE.as_ref()).unwrap(),
+///             Foo::Bar => Bar,
+///             Foo::Baz => Baz,
 ///         }
 ///     }
 ///     
@@ -266,7 +263,7 @@ where
 /// The macro will emit error if neither associated constant value nor default constant value is provided.
 ///
 /// ```compile_fail
-/// # use enumeration::enumerate;
+/// # use enumeration::prelude::*;
 /// enumerate!(Foo(u8; i32)
 ///     Bar
 ///     Baz = 10
@@ -275,7 +272,7 @@ where
 ///
 /// # Visibility
 /// ```
-/// # use enumeration::enumerate;
+/// # use enumeration::prelude::*;
 /// enumerate!(pub Foo(u8)
 ///     Bar
 /// );
@@ -290,7 +287,7 @@ where
 /// It's most useful for documentation.
 ///
 /// ```
-/// # use enumeration::enumerate;
+/// # use enumeration::prelude::*;
 /// enumerate!(#[doc="An enumeration named Foo"] pub Foo(u8; #[doc="Overwrite default constant value's documentation"] i32 = 0)
 ///     #[doc="Bar"] Bar
 ///     #[doc="Baz"] Baz
@@ -339,15 +336,14 @@ macro_rules! enumerate {
             type Index = $t;
             type AssociatedValueType = $associated_value_type;
             const VARIANT_COUNT: $t = $crate::count!($($variant)*);
-            $(#[$default_attr])*
-            const DEFAULT_VARIANT_ASSOCIATED_VALUE: Option<Self::AssociatedValueType> = $crate::option!($($default_value)?);
             
             #[inline(always)]
             fn value(self) -> &'static Self::AssociatedValueType {
-                $crate::validate!($associated_value_type, $($default_value)?, $(($($attr)* : $variant : $($associated_value)?))*);
+                $crate::validate!(@DEFAULT DEFAULT_VARIANT_ASSOCIATED_VALUE; $(#[$default_attr])* $associated_value_type, $($default_value)?);
+                $crate::validate!(DEFAULT_VARIANT_ASSOCIATED_VALUE $associated_value_type, $($default_value)?, $(($($attr)* : $variant : $($associated_value)?))*);
 
                 match self {
-                    $(Self::$variant => $variant.as_ref().or(Self::DEFAULT_VARIANT_ASSOCIATED_VALUE.as_ref()).unwrap(),)*
+                    $(Self::$variant => $variant,)*
                 }
             }
 

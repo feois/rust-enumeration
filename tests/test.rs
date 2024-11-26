@@ -9,6 +9,11 @@ enumerate!(Test(u8; i32 = 99)
     Z = 777
 );
 
+enumerate!(TestUnitType(u8; () = ())
+    Foo
+    Bar = { assert!(true); }
+);
+
 enumerate!(Str(u8; &'static str)
     HelloWorld = "Hello world!"
 );

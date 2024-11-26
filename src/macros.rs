@@ -41,23 +41,32 @@ macro_rules! count {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! validate {
-    ($t:ty, , ($($attr:meta)* : $variant:ident :)) => {
+    (@DEFAULT $default_ident:ident; $(#[$default_attr:meta])* $t:ty,) => {
+
+    };
+
+    (@DEFAULT $default_ident:ident; $(#[$default_attr:meta])* $t:ty, $default:expr) => {
+        $(#[$default_attr])*
+        const $default_ident: $t = $default;
+    };
+
+    ($default_ident:ident $t:ty, , ($($attr:meta)* : $variant:ident :)) => {
         compile_error!("Neither associated constant value nor default constant value provided")
     };
 
-    ($t:ty, $default:expr, ($($attr:meta)* : $variant:ident :)) => {
+    ($default_ident:ident $t:ty, $default:expr, ($($attr:meta)* : $variant:ident :)) => {
         #[allow(non_upper_case_globals)]
-        const $variant: Option<$t> = None;
+        const $variant: &'static $t = &$default_ident;
     };
 
-    ($t:ty, $($default:expr)?, ($($attr:meta)* : $variant:ident : $associated_value:expr)) => {
+    ($default_ident:ident $t:ty, $($default:expr)?, ($($attr:meta)* : $variant:ident : $associated_value:expr)) => {
         #[allow(non_upper_case_globals)]
-        const $variant: Option<$t> = Some($associated_value);
+        const $variant: &'static $t = &$associated_value;
     };
 
-    ($t:ty, $($default:expr)?, ($($attr:meta)* : $variant:ident : $($associated_value:expr)?) $(($($at:meta)* : $v:ident : $($a:expr)?))+) => {
-        $crate::validate!($t, $($default)?, ($($attr)* : $variant : $($associated_value)?));
-        $crate::validate!($t, $($default)?, $(($($at)* : $v : $($a)?))+);
+    ($default_ident:ident $t:ty, $($default:expr)?, ($($attr:meta)* : $variant:ident : $($associated_value:expr)?) $(($($at:meta)* : $v:ident : $($a:expr)?))+) => {
+        $crate::validate!($default_ident $t, $($default)?, ($($attr)* : $variant : $($associated_value)?));
+        $crate::validate!($default_ident $t, $($default)?, $(($($at)* : $v : $($a)?))+);
     };
 }
 
