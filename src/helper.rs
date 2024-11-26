@@ -46,3 +46,12 @@ pub trait IteratorHelper where Self: Sized {
 }
 
 impl<T: Iterator> IteratorHelper for T {}
+
+#[cfg(feature = "map")]
+mod map {
+    struct Array<T, const N: usize>([T; N]);
+
+    pub struct EnumMap<E: Enumeration, T> {
+        array: Array<T, { E::len() }>
+    }
+}
