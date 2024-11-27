@@ -48,6 +48,10 @@ enumerate!(TestSameValue(u8; char)
     Baz = 'a'
 );
 
+enumerate!(one-way TestOneWay(u8; fn())
+    Foo = (|| ()) as fn()
+);
+
 #[test]
 fn test_index() {
     assert_eq!(Test::Foo.to_index(), 0);

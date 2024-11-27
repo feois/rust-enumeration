@@ -133,7 +133,10 @@ where
     fn try_iter() -> impl Iterator<Item = Self> where Self::Index: Into<usize> + TryFrom<usize> {
         (0..Self::len()).map(|i| unsafe { Self::variant_unchecked(i.try_into().unwrap_or_else(|_| unreachable!()) ) })
     }
-    
+}
+
+/// Returns the first variant (in the declaration order) associated with the value
+pub trait FromValue: Enumeration {
     /// Returns the first variant (in the declaration order) associated with the value
     /// Returns error when no variant is associated with the value
     /// 
@@ -359,7 +362,19 @@ macro_rules! enumerate {
         $crate::enumerate!($(#[$enum_attr])* $visibility $name ($t; $(#[$default_attr])* $associated_value_type $(= $default_value)?) $($(#[$attr])* $variant $(= $associated_value)?)*);
     };
 
-    ($(#[$enum_attr:meta])* $visibility:vis $name:ident ($t:ident; $associated_value_type:ty $(= $default_value:expr)?) $($(#[$attr:meta])* $variant:ident $(= $associated_value:expr)? $(,)? $(;)?)*) => {
+    ($(#[$enum_attr:meta])* $visibility:vis one-way enum $name:ident ($t:ident) $($(#[$attr:meta])* $variant:ident $(,)? $(;)?)*) => {
+        $crate::enumerate!($(#[$enum_attr])* $visibility one-way $name ($t; () = ()) $($(#[$attr])* $variant = ())*);
+    };
+
+    ($(#[$enum_attr:meta])* $visibility:vis one-way $name:ident ($t:ident) $($(#[$attr:meta])* $variant:ident $(,)? $(;)?)*) => {
+        $crate::enumerate!($(#[$enum_attr])* $visibility one-way $name ($t; () = ()) $($(#[$attr])* $variant = ())*);
+    };
+
+    ($(#[$enum_attr:meta])* $visibility:vis one-way enum $name:ident ($t:ident; $associated_value_type:ty $(= $default_value:expr)?) $($(#[$attr:meta])* $variant:ident $(= $associated_value:expr)? $(,)? $(;)?)*) => {
+        $crate::enumerate!($(#[$enum_attr])* $visibility one-way $name ($t; $(#[$default_attr])* $associated_value_type $(= $default_value)?) $($(#[$attr])* $variant $(= $associated_value)?)*);
+    };
+
+    ($(#[$enum_attr:meta])* $visibility:vis one-way $name:ident ($t:ident; $associated_value_type:ty $(= $default_value:expr)?) $($(#[$attr:meta])* $variant:ident $(= $associated_value:expr)? $(,)? $(;)?)*) => {
         $(#[$enum_attr])*
         #[repr($t)]
         #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -390,7 +405,16 @@ macro_rules! enumerate {
 
                 std::mem::transmute(index)
             }
+        }
 
+        $crate::impl_try_from_into!($t, $name);
+    };
+
+    ($(#[$enum_attr:meta])* $visibility:vis $name:ident ($t:ident; $associated_value_type:ty $(= $default_value:expr)?) $($(#[$attr:meta])* $variant:ident $(= $associated_value:expr)? $(,)? $(;)?)*) => {
+        $crate::enumerate!($(#[$enum_attr])* $visibility one-way $name ($t; $associated_value_type $(= $default_value)?) $($(#[$attr])* $variant $(= $associated_value)?)*);
+
+        #[allow(non_upper_case_globals)]
+        impl $crate::enumeration::FromValue for $name {
             #[inline(always)]
             fn from_value<'a>(value: &'a $associated_value_type) -> ::std::result::Result<Self, $crate::enumeration::UnknownAssociatedValueError<'a, Self>> {
                 $crate::validate!($name $associated_value_type, $($default_value)?, $(($($attr)* : $variant : $($associated_value)?))*);
@@ -411,7 +435,5 @@ macro_rules! enumerate {
                 }
             }
         }
-
-        $crate::impl_try_from_into!($t, $name);
     };
 }
