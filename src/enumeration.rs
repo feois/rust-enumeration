@@ -92,6 +92,18 @@ where
     fn to_usize(self) -> usize where Self::Index: Into<usize> {
         self.to_index().into()
     }
+
+    #[inline(always)]
+    /// Iterate through all variants
+    fn iter() -> impl Iterator<Item = Self> where Self::Index: Into<usize> + From<usize> {
+        (0..Self::len()).map(|i| unsafe { Self::variant_unchecked(i.into()) })
+    }
+
+    #[inline(always)]
+    /// iter() but when `Index` only implements `TryFrom<usize>` as opposed to `From<usize>`
+    fn try_iter() -> impl Iterator<Item = Self> where Self::Index: Into<usize> + TryFrom<usize> {
+        (0..Self::len()).map(|i| unsafe { Self::variant_unchecked(i.try_into().unwrap_or_else(|_| unreachable!()) ) })
+    }
 }
 
 /// This macro helps to create enum with trait [Enumeration].
