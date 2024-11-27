@@ -41,32 +41,25 @@ macro_rules! count {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! validate {
-    (@DEFAULT $default_ident:ident; $(#[$default_attr:meta])* $t:ty,) => {
-
-    };
-
-    (@DEFAULT $default_ident:ident; $(#[$default_attr:meta])* $t:ty, $default:expr) => {
-        $(#[$default_attr])*
-        const $default_ident: $t = $default;
-    };
-
-    ($default_ident:ident $t:ty, , ($($attr:meta)* : $variant:ident :)) => {
+    ($name:ident $t:ty, , ($($attr:meta)* : $variant:ident :)) => {
         compile_error!("Neither associated constant value nor default constant value provided")
     };
 
-    ($default_ident:ident $t:ty, $default:expr, ($($attr:meta)* : $variant:ident :)) => {
+    ($name:ident $t:ty, $default:expr, ($($attr:meta)* : $variant:ident :)) => {
+        $(#[$attr])*
         #[allow(non_upper_case_globals)]
-        const $variant: &'static $t = &$default_ident;
+        const $variant: &'static $t = &<$name as $crate::enumeration::DefaultAssociatedValue>::DEFAULT_ASSOCIATED_VALUE;
     };
 
-    ($default_ident:ident $t:ty, $($default:expr)?, ($($attr:meta)* : $variant:ident : $associated_value:expr)) => {
+    ($name:ident $t:ty, $($default:expr)?, ($($attr:meta)* : $variant:ident : $associated_value:expr)) => {
+        $(#[$attr])*
         #[allow(non_upper_case_globals)]
         const $variant: &'static $t = &$associated_value;
     };
 
-    ($default_ident:ident $t:ty, $($default:expr)?, ($($attr:meta)* : $variant:ident : $($associated_value:expr)?) $(($($at:meta)* : $v:ident : $($a:expr)?))+) => {
-        $crate::validate!($default_ident $t, $($default)?, ($($attr)* : $variant : $($associated_value)?));
-        $crate::validate!($default_ident $t, $($default)?, $(($($at)* : $v : $($a)?))+);
+    ($name:ident $t:ty, $($default:expr)?, ($($attr:meta)* : $variant:ident : $($associated_value:expr)?) $(($($at:meta)* : $v:ident : $($a:expr)?))+) => {
+        $crate::validate!($name $t, $($default)?, ($($attr)* : $variant : $($associated_value)?));
+        $crate::validate!($name $t, $($default)?, $(($($at)* : $v : $($a)?))+);
     };
 }
 
@@ -79,5 +72,19 @@ macro_rules! option {
 
     ($value:expr) => {
         Some($value)
+    };
+}
+
+#[doc(hidden)]
+#[macro_export]
+macro_rules! impl_default {
+    ($name:ident $t:ty) => {
+
+    };
+
+    ($name:ident $t:ty = $default:expr) => {
+        impl $crate::enumeration::DefaultAssociatedValue for $name {
+            const DEFAULT_ASSOCIATED_VALUE: $t = $default;
+        }
     };
 }

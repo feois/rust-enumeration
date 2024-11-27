@@ -22,9 +22,26 @@ impl<T: Enumeration> Display for OutOfRangeError<T> {
 
 impl<T: Enumeration + Debug> std::error::Error for OutOfRangeError<T> {}
 
+/// Error type when converting from [Enumeration::AssociatedValueType] to [Enumeration].
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
+pub struct UnknownAssociatedValueError<'a, T: Enumeration>(pub &'a T::AssociatedValueType);
+
+impl<'a, T: Enumeration> Display for UnknownAssociatedValueError<'a, T> where T::AssociatedValueType: Display {
+    #[inline(always)]
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Unknown associated value: {}",
+            self.0,
+        )
+    }
+}
+
+impl<'a, T: Enumeration> std::error::Error for UnknownAssociatedValueError<'a, T> where T::AssociatedValueType: Display {}
+
 /// A trait to extend enum.
 ///
-/// You should not implement this directly, instead use [enumerate!].
+/// You should not implement this directly, instead use [crate::enumerate].
 /// The rest of the library assumes the constants are correct.
 ///
 /// This trait provides support for
@@ -58,14 +75,14 @@ where
     const VARIANT_COUNT: Self::Index;
 
     #[inline(always)]
-    /// Same as VARIANT_COUNT
+    /// Same as [Enumeration::VARIANT_COUNT]
     fn count() -> Self::Index { Self::VARIANT_COUNT }
 
     #[inline(always)]
-    /// VARIANT_COUNT as usize
+    /// [Enumeration::VARIANT_COUNT] as usize
     fn len() -> usize where Self::Index: Into<usize> { Self::count().into() }
 
-    /// Get the reference to the static associated constant value of the variant or the default constant value [Self::DEFAULT_VARIANT_ASSOCIATED_VALUE].
+    /// Get the reference to the static associated constant value of the variant or the default constant value [DefaultAssociatedValue::DEFAULT_ASSOCIATED_VALUE].
     fn value(self) -> &'static Self::AssociatedValueType;
 
     #[inline(always)]
@@ -94,13 +111,13 @@ where
     unsafe fn variant_unchecked(index: Self::Index) -> Self;
 
     #[inline(always)]
-    /// Cast this enumeration to respective index.
+    /// Cast this variant to respective index.
     fn to_index(self) -> Self::Index {
         self.into()
     }
 
     #[inline(always)]
-    /// Cast this enumeration to usize
+    /// Cast this variant to usize
     fn to_usize(self) -> usize where Self::Index: Into<usize> {
         self.to_index().into()
     }
@@ -116,6 +133,23 @@ where
     fn try_iter() -> impl Iterator<Item = Self> where Self::Index: Into<usize> + TryFrom<usize> {
         (0..Self::len()).map(|i| unsafe { Self::variant_unchecked(i.try_into().unwrap_or_else(|_| unreachable!()) ) })
     }
+    
+    /// Returns the first variant (in the declaration order) associated with the value
+    /// Returns error when no variant is associated with the value
+    /// 
+    /// See also [Enumeration::from_value_unchecked]
+    fn from_value<'a>(value: &'a Self::AssociatedValueType) -> Result<Self, UnknownAssociatedValueError<'a, Self>>;
+    /// Returns the first variant (in the declaration order) associated with the value
+    /// Panics when no variant is associated with the value
+    /// 
+    /// See also [Enumeration::from_value]
+    fn from_value_unchecked(value: &Self::AssociatedValueType) -> Self;
+}
+
+/// When the a default associated value is provided in the [crate::enumerate] macro, this trait will be implemented automatically
+pub trait DefaultAssociatedValue: Enumeration {
+    /// The default associated value of an [Enumeration] variant
+    const DEFAULT_ASSOCIATED_VALUE: Self::AssociatedValueType;
 }
 
 /// This macro helps to create enum with trait [Enumeration].
@@ -124,7 +158,7 @@ where
 /// - attributes (optional)
 /// - a visibility qualifier (optional)
 /// - a name
-/// - a type this enumeration can cast to
+/// - an integer type as the underlying type
 /// - a type for associated constant values (optional)
 ///     - a default value for associated constant values (optional)
 /// - at least a variant
@@ -132,9 +166,7 @@ where
 ///     - with associated constant value (only if the type is given) (optional only if default is given)
 ///
 /// Note that commas after each variant isn't a must (`;` works too).
-/// You can also specify enum after visibility
-///
-/// All patterns that start with @ is for internal macro implementation only.
+/// You can also type enum before the name, i.e. `pub enum Foo(u8)` instead of `pub Foo(u8)`
 ///
 /// # Simple usage
 /// ```
@@ -158,8 +190,8 @@ where
 /// with [Enumeration] implementation.
 ///
 /// # Syntax
-/// You might notice that there is no comma after each variant.
-/// The macro offers multiple syntax branch that will improve readability and comply to [official Rust syntax guidelines](https://rust-lang.github.io/api-guidelines/about.html).
+/// 
+/// Commas are entirely optional after each variant, you can also use semicolon instead.
 ///
 /// ```
 /// # use enumeration::enumerate;
@@ -198,9 +230,7 @@ where
 ///
 /// produces
 ///
-/// ```
-/// # use enumeration::prelude::*;
-/// # #[derive(Copy, Clone, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]
+/// ```ignore
 /// enum Foo {
 ///     Bar,
 ///     Baz,
@@ -209,12 +239,8 @@ where
 /// # enumeration::impl_try_from_into!(u8, Foo);
 /// #
 /// impl Enumeration for Foo {
-/// #     type Index = u8; type AssociatedValueType = i32; const VARIANT_COUNT: u8 = 2;
-/// #
 ///     fn value(self) -> &'static i32 {
-/// #         #[allow(non_upper_case_globals)]
 ///         const Bar: &'static i32 = &10;
-/// #         #[allow(non_upper_case_globals)]
 ///         const Baz: &'static i32 = &20;
 ///         
 ///         match self {
@@ -222,19 +248,14 @@ where
 ///             Foo::Baz => Baz,
 ///         }
 ///     }
-///     
-///     unsafe fn variant_unchecked(index: Self::Index) -> Self {
-///         std::mem::transmute(index)    
-///     }
 /// }
-///
-/// fn example() {
-///     println!("{}", Foo::Bar.value()); // prints 10
-///     println!("{}", Foo::Baz.value()); // prints 20
-/// }
+/// 
+/// assert_eq!(Foo::Bar.value(), &10);
+/// assert_eq!(Foo::Baz.value(), &20);
 /// ```
 ///
 /// # Default constant value
+/// 
 /// ```
 /// # use enumeration::enumerate;
 /// enumerate!(Foo(u8; i32 = 20)
@@ -245,24 +266,19 @@ where
 ///
 /// produces
 ///
-/// ```
-/// # use enumeration::prelude::*;
-/// # #[derive(Copy, Clone, Hash, Debug, PartialEq, Eq, PartialOrd, Ord)]
+/// ```ignore
 /// enum Foo {
 ///     Bar,
 ///     Baz,
 /// }
+/// 
+/// impl DefaultAssociatedValue for Foo {
+///     const DEFAULT_ASSOCIATED_VALUE: i32 = 20;
+/// }
 ///
-/// # enumeration::impl_try_from_into!(u8, Foo);
-/// #
 /// impl Enumeration for Foo {
-/// #     type Index = u8; type AssociatedValueType = i32; const VARIANT_COUNT: u8 = 2;
-///
 ///     fn value(self) -> &'static i32 {
-///         const DEFAULT_VARIANT_ASSOCIATED_VALUE: i32 = 20;
-/// #         #[allow(non_upper_case_globals)]
-///         const Bar: &'static i32 = &DEFAULT_VARIANT_ASSOCIATED_VALUE;
-/// #         #[allow(non_upper_case_globals)]
+///         const Bar: &'static i32 = &Self::DEFAULT_ASSOCIATED_VALUE;
 ///         const Baz: &'static i32 = &10;
 ///         
 ///         match self {
@@ -270,19 +286,11 @@ where
 ///             Foo::Baz => Baz,
 ///         }
 ///     }
-///     
-///     unsafe fn variant_unchecked(index: Self::Index) -> Self {
-///         std::mem::transmute(index)    
-///     }
 /// }
-///
-/// fn example() {
-///     println!("{}", Foo::Bar.value()); // prints 20
-///     println!("{}", Foo::Baz.value()); // prints 10
-/// }
+/// 
+/// assert_eq!(Foo::Bar.value(), &20);
+/// assert_eq!(Foo::Baz.value(), &10);
 /// ```
-///
-/// Note that default constant value is only created once, so the reference to it will always be same.
 ///
 /// The macro will emit error if neither associated constant value nor default constant value is provided.
 ///
@@ -293,8 +301,11 @@ where
 ///     Baz = 10
 /// );
 /// ```
+/// 
+/// Note that any constant expression can be used as an associated constant.
 ///
 /// # Visibility
+/// 
 /// ```
 /// # use enumeration::prelude::*;
 /// enumerate!(pub Foo(u8)
@@ -312,7 +323,7 @@ where
 ///
 /// ```
 /// # use enumeration::prelude::*;
-/// enumerate!(#[doc="An enumeration named Foo"] pub Foo(u8; #[doc="Overwrite default constant value's documentation"] i32 = 0)
+/// enumerate!(#[doc="An enumeration named Foo"] pub Foo(u8)
 ///     #[doc="Bar"] Bar
 ///     #[doc="Baz"] Baz
 /// );
@@ -336,19 +347,19 @@ where
 /// ```
 #[macro_export]
 macro_rules! enumerate {
-    ($(#[$enum_attr:meta])* $visibility:vis $name:ident ($t:ident) $($(#[$attr:meta])* $variant:ident $(,)? $(;)?)*) => {
-        $crate::enumerate!($(#[$enum_attr])* $visibility $name ($t; () = ()) $($(#[$attr])* $variant = ())*);
-    };
-
     ($(#[$enum_attr:meta])* $visibility:vis enum $name:ident ($t:ident) $($(#[$attr:meta])* $variant:ident $(,)? $(;)?)*) => {
         $crate::enumerate!($(#[$enum_attr])* $visibility $name ($t; () = ()) $($(#[$attr])* $variant = ())*);
     };
 
-    ($(#[$enum_attr:meta])* $visibility:vis enum $name:ident ($t:ident; $(#[$default_attr:meta])* $associated_value_type:ty $(= $default_value:expr)?) $($(#[$attr:meta])* $variant:ident $(= $associated_value:expr)? $(,)? $(;)?)*) => {
+    ($(#[$enum_attr:meta])* $visibility:vis $name:ident ($t:ident) $($(#[$attr:meta])* $variant:ident $(,)? $(;)?)*) => {
+        $crate::enumerate!($(#[$enum_attr])* $visibility $name ($t; () = ()) $($(#[$attr])* $variant = ())*);
+    };
+
+    ($(#[$enum_attr:meta])* $visibility:vis enum $name:ident ($t:ident; $associated_value_type:ty $(= $default_value:expr)?) $($(#[$attr:meta])* $variant:ident $(= $associated_value:expr)? $(,)? $(;)?)*) => {
         $crate::enumerate!($(#[$enum_attr])* $visibility $name ($t; $(#[$default_attr])* $associated_value_type $(= $default_value)?) $($(#[$attr])* $variant $(= $associated_value)?)*);
     };
 
-    ($(#[$enum_attr:meta])* $visibility:vis $name:ident ($t:ident; $(#[$default_attr:meta])* $associated_value_type:ty $(= $default_value:expr)?) $($(#[$attr:meta])* $variant:ident $(= $associated_value:expr)? $(,)? $(;)?)*) => {
+    ($(#[$enum_attr:meta])* $visibility:vis $name:ident ($t:ident; $associated_value_type:ty $(= $default_value:expr)?) $($(#[$attr:meta])* $variant:ident $(= $associated_value:expr)? $(,)? $(;)?)*) => {
         $(#[$enum_attr])*
         #[repr($t)]
         #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
@@ -356,6 +367,9 @@ macro_rules! enumerate {
             $($(#[$attr])* $variant,)*
         }
 
+        $crate::impl_default!($name $associated_value_type $(= $default_value)?);
+
+        #[allow(non_upper_case_globals)]
         impl $crate::enumeration::Enumeration for $name {
             type Index = $t;
             type AssociatedValueType = $associated_value_type;
@@ -363,8 +377,7 @@ macro_rules! enumerate {
             
             #[inline(always)]
             fn value(self) -> &'static Self::AssociatedValueType {
-                $crate::validate!(@DEFAULT DEFAULT_VARIANT_ASSOCIATED_VALUE; $(#[$default_attr])* $associated_value_type, $($default_value)?);
-                $crate::validate!(DEFAULT_VARIANT_ASSOCIATED_VALUE $associated_value_type, $($default_value)?, $(($($attr)* : $variant : $($associated_value)?))*);
+                $crate::validate!($name $associated_value_type, $($default_value)?, $(($($attr)* : $variant : $($associated_value)?))*);
 
                 match self {
                     $(Self::$variant => $variant,)*
@@ -376,6 +389,26 @@ macro_rules! enumerate {
                 debug_assert!(index >= 0 && index < Self::VARIANT_COUNT);
 
                 std::mem::transmute(index)
+            }
+
+            #[inline(always)]
+            fn from_value<'a>(value: &'a $associated_value_type) -> ::std::result::Result<Self, $crate::enumeration::UnknownAssociatedValueError<'a, Self>> {
+                $crate::validate!($name $associated_value_type, $($default_value)?, $(($($attr)* : $variant : $($associated_value)?))*);
+
+                match value {
+                    $($variant => Ok(Self::$variant),)*
+                    _ => Err($crate::enumeration::UnknownAssociatedValueError(value)),
+                }
+            }
+
+            #[inline(always)]
+            fn from_value_unchecked(value: &$associated_value_type) -> Self {
+                $crate::validate!($name $associated_value_type, $($default_value)?, $(($($attr)* : $variant : $($associated_value)?))*);
+
+                match value {
+                    $($variant => Self::$variant,)*
+                    _ => unreachable!(),
+                }
             }
         }
 

@@ -36,6 +36,18 @@ enumerate!(TestString(u8; &'static str)
     HelloWorld = HELLO_WORLD_STR
 );
 
+enumerate!(TestUsize(usize)
+    Foo
+    Bar
+    Baz
+);
+
+enumerate!(TestSameValue(u8; char)
+    Foo = 'a'
+    Bar = 'a'
+    Baz = 'a'
+);
+
 #[test]
 fn test_index() {
     assert_eq!(Test::Foo.to_index(), 0);
@@ -143,12 +155,6 @@ fn test_try_iter() {
     assert_eq!(iter.next(), None);
 }
 
-enumerate!(TestUsize(usize)
-    Foo
-    Bar
-    Baz
-);
-
 #[test]
 fn test_iter_usize() {
     let mut iter = TestUsize::iter();
@@ -157,4 +163,35 @@ fn test_iter_usize() {
     assert_eq!(iter.next(), Some(TestUsize::Bar));
     assert_eq!(iter.next(), Some(TestUsize::Baz));
     assert_eq!(iter.next(), None);
+}
+
+#[test]
+fn test_from_value() {
+    assert_eq!(Test::from_value(&FOO_STR), Ok(Test::Foo));
+    assert_eq!(Test::from_value(&DEFAULT_STR), Ok(Test::Bar));
+    assert_eq!(Test::from_value(&BAZ_STR), Ok(Test::Baz));
+    assert!(Test::from_value(&"").is_err());
+}
+
+#[test]
+fn test_from_value_unchecked() {
+    assert_eq!(Test::from_value_unchecked(&FOO_STR), Test::Foo);
+    assert_eq!(Test::from_value_unchecked(&DEFAULT_STR), Test::Bar);
+    assert_eq!(Test::from_value_unchecked(&BAZ_STR), Test::Baz);
+}
+
+#[test]
+#[should_panic]
+fn test_from_value_unchecked_fail() {
+    Test::from_value_unchecked(&"");
+}
+
+#[test]
+fn test_same_value() {
+    assert_eq!(TestSameValue::from_value_unchecked(&'a'), TestSameValue::Foo);
+}
+
+#[test]
+fn test_default() {
+    assert_eq!(DEFAULT_STR, Test::DEFAULT_ASSOCIATED_VALUE);
 }
