@@ -69,6 +69,18 @@ where
     fn value(self) -> &'static Self::AssociatedValueType;
 
     #[inline(always)]
+    /// Get the associated constant value by copying
+    fn value_copy(self) -> Self::AssociatedValueType where Self::AssociatedValueType: Copy {
+        *self.value()
+    }
+
+    #[inline(always)]
+    /// Get the associated constant value by cloning
+    fn value_clone(self) -> Self::AssociatedValueType where Self::AssociatedValueType: Clone {
+        self.value().clone()
+    }
+
+    #[inline(always)]
     /// Cast index to the respective enumeration.
     ///
     /// # Errors
