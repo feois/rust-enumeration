@@ -1,5 +1,6 @@
 use std::any::{Any, TypeId};
 
+use enumeration::bitmask::*;
 use enumeration::prelude::*;
 use enumeration::variant::*;
 
@@ -52,6 +53,12 @@ enumerate!(one-way TestOneWay(u8; fn())
     Foo = (|| ()) as fn()
 );
 
+bitenum!(TestBitEnum (u8; u16)
+    Foo
+    Bar
+    Baz
+);
+
 #[test]
 fn test_index() {
     assert_eq!(Test::Foo.to_index(), 0);
@@ -81,7 +88,7 @@ fn test_string() {
 #[test]
 fn test_variant() {
     let vec: Vec<Variant<_>> = vec![Test::Foo.into(), TestString::HelloWorld.into()];
-    
+
     assert_eq!(vec[0].cast::<Test>(), Ok(Test::Foo));
     assert_eq!(vec[1].cast::<TestString>(), Ok(TestString::HelloWorld));
     assert!(vec[1].cast::<Test>().is_err());
@@ -90,7 +97,7 @@ fn test_variant() {
 #[test]
 fn test_variant_with() {
     let vec: Vec<VariantWith<_, _>> = vec![Test::Foo.into(), Test::Baz.into()];
-    
+
     assert_eq!(*vec[0].value(), FOO_STR);
     assert_eq!(*vec[1].value(), BAZ_STR);
 }
@@ -123,7 +130,9 @@ fn test_iter_unchecked() {
 #[test]
 #[should_panic]
 fn test_iter_unchecked_fail() {
-    (Test::VARIANT_COUNT..=Test::VARIANT_COUNT).variants_unwrap::<Test>().next();
+    (Test::VARIANT_COUNT..=Test::VARIANT_COUNT)
+        .variants_unwrap::<Test>()
+        .next();
 }
 
 #[test]
@@ -139,7 +148,9 @@ fn test_iter_unwrap() {
 #[test]
 #[should_panic]
 fn test_iter_unwrap_fail() {
-    (Test::VARIANT_COUNT..=Test::VARIANT_COUNT).variants_unwrap::<Test>().next();
+    (Test::VARIANT_COUNT..=Test::VARIANT_COUNT)
+        .variants_unwrap::<Test>()
+        .next();
 }
 
 #[test]
@@ -192,10 +203,64 @@ fn test_from_value_unchecked_fail() {
 
 #[test]
 fn test_same_value() {
-    assert_eq!(TestSameValue::from_value_unchecked(&'a'), TestSameValue::Foo);
+    assert_eq!(
+        TestSameValue::from_value_unchecked(&'a'),
+        TestSameValue::Foo
+    );
 }
 
 #[test]
 fn test_default() {
     assert_eq!(DEFAULT_STR, Test::DEFAULT_ASSOCIATED_VALUE);
+}
+
+#[test]
+fn test_bit_enum() {
+    assert_eq!(TestBitEnum::Foo.value(), &Bits(1 << 0));
+    assert_eq!(TestBitEnum::Bar.value(), &Bits(1 << 1));
+    assert_eq!(TestBitEnum::Baz.value(), &Bits(1 << 2));
+}
+
+#[test]
+fn test_bits_struct() {
+    let mask = TestBitEnum::Foo + TestBitEnum::Bar;
+
+    assert_eq!(TestBitEnum::all_bits(), Bits((1 << 0) + (1 << 1) + (1 << 2)));
+    assert_eq!(mask, Bits((1 << 0) + (1 << 1)));
+    assert_eq!(mask + TestBitEnum::Baz, TestBitEnum::all_bits());
+    assert_eq!(TestBitEnum::all_bits(), TestBitEnum::try_iter().sum());
+    assert_eq!(TestBitEnum::all_bits(), TestBitEnum::try_iter().collect());
+    assert_eq!(mask, [&TestBitEnum::Foo, &TestBitEnum::Bar].into_iter().sum());
+    assert_eq!(mask, [&TestBitEnum::Foo, &TestBitEnum::Bar].into_iter().collect());
+    assert_eq!(TestBitEnum::all_bits(), [1 << 0, 1 << 1, 1 << 2].into_iter().sum());
+    assert_eq!(TestBitEnum::all_bits(), [1 << 0, 1 << 1, 1 << 2].into_iter().collect());
+    assert_eq!(TestBitEnum::all_bits(), [1 << 0, 1 << 1, 1 << 2].iter().sum());
+    assert_eq!(TestBitEnum::all_bits(), [1 << 0, 1 << 1, 1 << 2].iter().collect());
+    assert_eq!(mask, mask + TestBitEnum::Foo);
+    assert_eq!(mask, mask + (1 << 0));
+    assert_eq!(mask, [TestBitEnum::Foo, TestBitEnum::Bar, TestBitEnum::Bar].iter().sum());
+    assert_eq!(mask, [1 << 0, 1 << 1, 1 << 1].iter().sum());
+
+    assert_eq!(TestBitEnum::zero_bit(), Bits::zero());
+    assert_eq!(mask - TestBitEnum::Foo, TestBitEnum::Bar.bit());
+    assert_eq!(mask - TestBitEnum::Bar, TestBitEnum::Foo.bit());
+    assert_eq!(mask - TestBitEnum::Baz, mask);
+    assert_eq!(mask - (TestBitEnum::Foo + TestBitEnum::Bar), Bits::zero());
+    assert_eq!(mask - (TestBitEnum::Foo + TestBitEnum::Bar + TestBitEnum::Baz), Bits::zero());
+
+    assert!(mask.has(TestBitEnum::Foo));
+    assert!(mask.has(TestBitEnum::Foo) && mask.has(TestBitEnum::Bar));
+    assert!(mask.has(TestBitEnum::Foo + TestBitEnum::Bar));
+    assert!(mask.has(1 << 0));
+    assert!(!mask.has(TestBitEnum::Baz));
+    assert!(!mask.has(1 << 2));
+    assert!(!mask.has(TestBitEnum::all_bits()));
+
+    assert!(mask.has_all([TestBitEnum::Foo]));
+    assert!(mask.has_all(&[TestBitEnum::Foo]));
+    assert!(mask.has_all([TestBitEnum::Foo].iter()));
+    assert!(mask.has_all([TestBitEnum::Foo].into_iter()));
+    assert!(mask.has_all([TestBitEnum::Foo, TestBitEnum::Foo, TestBitEnum::Foo]));
+    assert!(mask.has_all([TestBitEnum::Foo, TestBitEnum::Bar]));
+    assert!(!mask.has_all([TestBitEnum::Foo, TestBitEnum::Bar, TestBitEnum::Baz]));
 }

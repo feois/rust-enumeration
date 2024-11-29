@@ -1,4 +1,3 @@
-
 #[doc(hidden)]
 #[macro_export]
 macro_rules! impl_try_from_into {
@@ -11,7 +10,8 @@ macro_rules! impl_try_from_into {
                 #[allow(unused_comparisons)]
                 if value >= 0 && value < <Self as $crate::enumeration::Enumeration>::VARIANT_COUNT {
                     Ok(unsafe { std::mem::transmute(value) })
-                } else {
+                }
+                else {
                     Err($crate::enumeration::OutOfRangeError(value))
                 }
             }
@@ -78,9 +78,7 @@ macro_rules! option {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! impl_default {
-    ($name:ident $t:ty) => {
-
-    };
+    ($name:ident $t:ty) => {};
 
     ($name:ident $t:ty = $default:expr) => {
         impl $crate::enumeration::DefaultAssociatedValue for $name {

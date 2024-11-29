@@ -9,17 +9,15 @@
 //! - attaching a constant value to each of the variants
 //! - runtime representation of enumeration
 
+pub mod bitmask;
 pub mod enumeration;
-pub mod variant;
 pub mod helper;
+pub mod variant;
 
 mod macros;
 
 /// Convenience re-export of common members
 pub mod prelude {
-    pub use crate::{
-        enumeration::*,
-        helper::*
-    };
     pub use crate::enumerate;
+    pub use crate::{enumeration::*, helper::*};
 }
