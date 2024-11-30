@@ -1,4 +1,3 @@
-#[doc(hidden)]
 #[macro_export]
 macro_rules! impl_try_from_into {
     ($t:ty, $name:ident) => {
@@ -26,7 +25,6 @@ macro_rules! impl_try_from_into {
     };
 }
 
-#[doc(hidden)]
 #[macro_export]
 macro_rules! count {
     () => {
@@ -38,7 +36,6 @@ macro_rules! count {
     };
 }
 
-#[doc(hidden)]
 #[macro_export]
 macro_rules! validate {
     ($name:ident $t:ty, , ($($attr:meta)* : $variant:ident :)) => {
@@ -63,19 +60,6 @@ macro_rules! validate {
     };
 }
 
-#[doc(hidden)]
-#[macro_export]
-macro_rules! option {
-    () => {
-        None
-    };
-
-    ($value:expr) => {
-        Some($value)
-    };
-}
-
-#[doc(hidden)]
 #[macro_export]
 macro_rules! impl_default {
     ($name:ident $t:ty) => {};
@@ -83,6 +67,36 @@ macro_rules! impl_default {
     ($name:ident $t:ty = $default:expr) => {
         impl $crate::enumeration::DefaultAssociatedValue for $name {
             const DEFAULT_ASSOCIATED_VALUE: $t = $default;
+        }
+    };
+}
+
+#[macro_export]
+macro_rules! impl_from_value {
+    ($name:ident : $associated_value_type:ty $(= $default_value:expr)?; $($(#[$attr:meta])* $variant:ident $(= $associated_value:expr)?)*) => {
+        #[allow(non_upper_case_globals)]
+        impl $crate::enumeration::FromValue for $name {
+            #[inline(always)]
+            fn from_value<'a>(value: &'a $associated_value_type) -> ::std::result::Result<Self, $crate::enumeration::UnknownAssociatedValueError<'a, Self>> {
+                $crate::validate!($name $associated_value_type, $($default_value)?, $(($($attr)* : $variant : $($associated_value)?))*);
+
+                match value {
+                    $($variant => Ok(Self::$variant),)*
+                    #[allow(unreachable_patterns)]
+                    _ => Err($crate::enumeration::UnknownAssociatedValueError(value)),
+                }
+            }
+
+            #[inline(always)]
+            fn from_value_unchecked(value: &$associated_value_type) -> Self {
+                $crate::validate!($name $associated_value_type, $($default_value)?, $(($($attr)* : $variant : $($associated_value)?))*);
+
+                match value {
+                    $($variant => Self::$variant,)*
+                    #[allow(unreachable_patterns)]
+                    _ => unreachable!(),
+                }
+            }
         }
     };
 }

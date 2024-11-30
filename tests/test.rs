@@ -4,60 +4,76 @@ use enumeration::bitmask::*;
 use enumeration::prelude::*;
 use enumeration::variant::*;
 
-enumerate!(pub TestPub(u8)
-    Foo
-);
+enumerate! {
+    pub TestPub(u8)
+        Foo
+}
 
-enumerate!(enum TestEnum(u8)
-    Foo
-);
+enumerate! {
+    enum TestEnum(u8)
+        Foo
+}
 
-enumerate!(pub enum TestPubEnum(u8)
-    Foo
-);
+enumerate! {
+    pub enum TestPubEnum(u8)
+        Foo
+}
 
 const DEFAULT_STR: &'static str = "default";
 const FOO_STR: &'static str = "foo";
 const BAZ_STR: &'static str = "baz";
 
-enumerate!(Test(u8; &'static str = DEFAULT_STR)
-    Foo = FOO_STR
-    Bar
-    Baz = BAZ_STR
-);
+enumerate! {
+    Test(u8; &'static str = DEFAULT_STR)
+        Foo = FOO_STR
+        Bar
+        Baz = BAZ_STR
+}
 
-enumerate!(TestUnitType(u8; () = ())
-    Foo
-    Bar = { assert!(true); }
-);
+enumerate! {
+    TestUnitType(u8; () = ())
+        Foo
+        Bar = { assert!(true); }
+}
 
 const HELLO_WORLD_STR: &'static str = "Hello world!";
 
-enumerate!(TestString(u8; &'static str)
-    HelloWorld = HELLO_WORLD_STR
-);
+enumerate! {
+    TestString(u8; &'static str)
+        HelloWorld = HELLO_WORLD_STR
+}
 
-enumerate!(TestUsize(usize)
-    Foo
-    Bar
-    Baz
-);
+enumerate! {
+    TestUsize(usize)
+        Foo
+        Bar
+        Baz
+}
 
-enumerate!(TestSameValue(u8; char)
-    Foo = 'a'
-    Bar = 'a'
-    Baz = 'a'
-);
+enumerate! {
+    TestSameValue(u8; char)
+        Foo = 'a'
+        Bar = 'a'
+        Baz = 'a'
+}
 
-enumerate!(one-way TestOneWay(u8; fn())
-    Foo = (|| ()) as fn()
-);
+enumerate! {
+    one-way TestOneWay(u8; fn())
+        Foo = (|| ()) as fn()
+}
 
-bitenum!(TestBitEnum (u8; u16)
-    Foo
-    Bar
-    Baz
-);
+enumerate! {
+    TestAlias(u8; alias: char)
+        Foo = 'a'
+        Bar = 'b'
+}
+
+bit_enum! {
+    TestBitEnum (u8; u16)
+        Foo
+        Bar
+        Baz
+}
 
 #[test]
 fn test_index() {
@@ -216,29 +232,55 @@ fn test_default() {
 
 #[test]
 fn test_bit_enum() {
-    assert_eq!(TestBitEnum::Foo.value(), &Bits(1 << 0));
-    assert_eq!(TestBitEnum::Bar.value(), &Bits(1 << 1));
-    assert_eq!(TestBitEnum::Baz.value(), &Bits(1 << 2));
+    assert_eq!(TestBitEnum::Foo.bit(), Bits(1 << 0));
+    assert_eq!(TestBitEnum::Bar.bit(), Bits(1 << 1));
+    assert_eq!(TestBitEnum::Baz.bit(), Bits(1 << 2));
 }
 
 #[test]
 fn test_bits_struct() {
     let mask = TestBitEnum::Foo + TestBitEnum::Bar;
 
-    assert_eq!(TestBitEnum::all_bits(), Bits((1 << 0) + (1 << 1) + (1 << 2)));
+    assert_eq!(
+        TestBitEnum::all_bits(),
+        Bits((1 << 0) + (1 << 1) + (1 << 2))
+    );
     assert_eq!(mask, Bits((1 << 0) + (1 << 1)));
     assert_eq!(mask + TestBitEnum::Baz, TestBitEnum::all_bits());
     assert_eq!(TestBitEnum::all_bits(), TestBitEnum::try_iter().sum());
     assert_eq!(TestBitEnum::all_bits(), TestBitEnum::try_iter().collect());
-    assert_eq!(mask, [&TestBitEnum::Foo, &TestBitEnum::Bar].into_iter().sum());
-    assert_eq!(mask, [&TestBitEnum::Foo, &TestBitEnum::Bar].into_iter().collect());
-    assert_eq!(TestBitEnum::all_bits(), [1 << 0, 1 << 1, 1 << 2].into_iter().sum());
-    assert_eq!(TestBitEnum::all_bits(), [1 << 0, 1 << 1, 1 << 2].into_iter().collect());
-    assert_eq!(TestBitEnum::all_bits(), [1 << 0, 1 << 1, 1 << 2].iter().sum());
-    assert_eq!(TestBitEnum::all_bits(), [1 << 0, 1 << 1, 1 << 2].iter().collect());
+    assert_eq!(
+        mask,
+        [&TestBitEnum::Foo, &TestBitEnum::Bar].into_iter().sum()
+    );
+    assert_eq!(
+        mask,
+        [&TestBitEnum::Foo, &TestBitEnum::Bar].into_iter().collect()
+    );
+    assert_eq!(
+        TestBitEnum::all_bits(),
+        [1 << 0, 1 << 1, 1 << 2].into_iter().sum()
+    );
+    assert_eq!(
+        TestBitEnum::all_bits(),
+        [1 << 0, 1 << 1, 1 << 2].into_iter().collect()
+    );
+    assert_eq!(
+        TestBitEnum::all_bits(),
+        [1 << 0, 1 << 1, 1 << 2].iter().sum()
+    );
+    assert_eq!(
+        TestBitEnum::all_bits(),
+        [1 << 0, 1 << 1, 1 << 2].iter().collect()
+    );
     assert_eq!(mask, mask + TestBitEnum::Foo);
     assert_eq!(mask, mask + (1 << 0));
-    assert_eq!(mask, [TestBitEnum::Foo, TestBitEnum::Bar, TestBitEnum::Bar].iter().sum());
+    assert_eq!(
+        mask,
+        [TestBitEnum::Foo, TestBitEnum::Bar, TestBitEnum::Bar]
+            .iter()
+            .sum()
+    );
     assert_eq!(mask, [1 << 0, 1 << 1, 1 << 1].iter().sum());
 
     assert_eq!(TestBitEnum::zero_bit(), Bits::zero());
@@ -246,7 +288,10 @@ fn test_bits_struct() {
     assert_eq!(mask - TestBitEnum::Bar, TestBitEnum::Foo.bit());
     assert_eq!(mask - TestBitEnum::Baz, mask);
     assert_eq!(mask - (TestBitEnum::Foo + TestBitEnum::Bar), Bits::zero());
-    assert_eq!(mask - (TestBitEnum::Foo + TestBitEnum::Bar + TestBitEnum::Baz), Bits::zero());
+    assert_eq!(
+        mask - (TestBitEnum::Foo + TestBitEnum::Bar + TestBitEnum::Baz),
+        Bits::zero()
+    );
 
     assert!(mask.has(TestBitEnum::Foo));
     assert!(mask.has(TestBitEnum::Foo) && mask.has(TestBitEnum::Bar));
@@ -263,4 +308,10 @@ fn test_bits_struct() {
     assert!(mask.has_all([TestBitEnum::Foo, TestBitEnum::Foo, TestBitEnum::Foo]));
     assert!(mask.has_all([TestBitEnum::Foo, TestBitEnum::Bar]));
     assert!(!mask.has_all([TestBitEnum::Foo, TestBitEnum::Bar, TestBitEnum::Baz]));
+}
+
+#[test]
+fn test_alias() {
+    assert_eq!(TestAlias::Foo.alias(), TestAlias::Foo.value());
+    assert_eq!(TestAlias::Bar.alias(), TestAlias::Bar.value());
 }

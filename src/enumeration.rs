@@ -1,9 +1,9 @@
-//! This module provides the core trait `Enumeration`
+//! This module provides the core trait [`Enumeration`]
 
 use std::fmt::{Debug, Display};
 use std::hash::Hash;
 
-/// Error type when casting from [Enumeration::Index] to [Enumeration].
+/// Error type when casting from [`Enumeration::Index`] to [`Enumeration`].
 #[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct OutOfRangeError<T: Enumeration>(pub T::Index);
 
@@ -21,7 +21,7 @@ impl<T: Enumeration> Display for OutOfRangeError<T> {
 
 impl<T: Enumeration + Debug> std::error::Error for OutOfRangeError<T> {}
 
-/// Error type when converting from [Enumeration::AssociatedValueType] to [Enumeration].
+/// Error type when converting from [`Enumeration::AssociatedValueType`] to [`Enumeration`].
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct UnknownAssociatedValueError<'a, T: Enumeration>(pub &'a T::AssociatedValueType);
 
@@ -42,16 +42,110 @@ impl<'a, T: Enumeration> std::error::Error for UnknownAssociatedValueError<'a, T
 
 /// A trait to extend enum.
 ///
-/// You should not implement this directly, instead use [crate::enumerate].
+/// You should not implement this directly, instead use [`crate::enumerate`].
 /// The rest of the library assumes the constants are correct.
 ///
-/// This trait provides support for
-/// - implementation for common traits ([Clone], [Copy], [Hash], etc.)
-/// - getting number of variants through constant [Self::VARIANT_COUNT]
-/// - casting between index (of type [Self::Index]) and enumeration
-/// - attaching a constant value to each of the variants
+/// # Associated types
+///
+/// - [`Enumeration`] is the enum type of variants, e.g. `Enum::Foo` or `Enum::Bar`
+/// - [`Enumeration::Index`] is the underlying type of the enum, i.e. enum internally uses this type as the integer representation, hence `size_of::<Enumeration>() == size_of::<Enumeration::Index>()`
+/// - [`Enumeration::AssociatedValueType`] is the type of the associated value
+///
+/// # Variant to Index
+///
+/// [`Enumeration::to_index`] will convert the variant ([`Enumeration`]) to index ([`Enumeration::Index`])
+///
+/// # Index to Variant
+///
+/// - [`Enumeration::variant`] will check if index is in range before converting
+/// - [`Enumeration::variant_unchecked`] will not check but may result in undefined behaviour if index is out of range
+///
+/// # Variant count
+///
+/// - [`Enumeration::VARIANT_COUNT`] is a constant of type [`Enumeration::Index`] set to the number of variants
+/// - [`Enumeration::count`] simply returns [`Enumeration::VARIANT_COUNT`]
+/// - [`Enumeration::len`] returns [`Enumeration::VARIANT_COUNT`] but converts it to [`usize`] (does not work if [`Enumeration::Index`] is larger than [`usize`], e.g. [`u128`])
+///
+/// # Iterating
+///
+/// - not supported for types larger than [`usize`], e.g. [`u128`] on 64-bit architectures
+/// - [`Enumeration::iter`] will return an [`Iterator`]
+/// - use [`Enumeration::try_iter`] if [`Enumeration::Index`] does not implement [`From<usize>`] (e.g. types smaller than [`usize`] like [`u8`] or [`u16`])
+///     - The reason is that it internally uses [`usize`] to index through variants as opposed to [`Enumeration::Index`] because currently [`std::ops::Range`] does not support generics until [`std::iter::Step`] is stabilized
+///     - For types smaller than [`usize`], [`TryFrom<usize>`] and [`Result::unwrap`] is used instead, while it may sound problematic, `enum` itself guarantees that the variant count will not exceed the maximum of [`Enumeration::Index`]. However it may be slower than [`Enumeration::iter`] depending on compiler optimization.
+///
+/// # Two-way conversion
+///
+/// You can convert [`Enumeration::AssociatedValueType`] back into [`Enumeration`] variant if [`FromValue`] is [implemented](crate::enumerate#two-way-conversion)
+///
+/// ```
+/// # use enumeration::prelude::*;
+/// enumerate! {
+///     Foo(u8; char)
+///         Bar = 'a'
+///         Baz = 'b'
+/// }
+/// 
+/// assert_eq!(Foo::from_value(&'a'), Ok(Foo::Bar));
+/// assert_eq!(Foo::from_value(&'b'), Ok(Foo::Baz));
+/// assert!(Foo::from_value(&'c').is_err());
+/// ```
+/// 
+/// You can skip the safety checks but it will panic on unknown value
+/// 
+/// ```should_panic
+/// # use enumeration::prelude::*;
+/// # enumerate! {
+/// #     Foo(u8; char)
+/// #         Bar = 'a'
+/// #         Baz = 'b'
+/// # }
+/// assert_eq!(Foo::from_value_unchecked(&'a'), Foo::Bar);
+/// assert_eq!(Foo::from_value_unchecked(&'b'), Foo::Baz);
+/// let _ = Foo::from_value_unchecked(&'c'); // panic
+/// ```
+/// 
+/// If two or more variants are associated with the same value, the first variant declared will be returned
+/// 
+/// ```
+/// # use enumeration::prelude::*;
+/// enumerate! {
+///     Foo(u8; char)
+///         Bar = 'a'
+///         Baz = 'a'
+///         FooBar = 'b'
+///         FooBaz = 'b'
+///         BarBar = 'a'
+///         BarBaz = 'b'
+/// }
+/// 
+/// assert_eq!(Foo::from_value(&'a'), Ok(Foo::Bar));
+/// assert_eq!(Foo::from_value(&'b'), Ok(Foo::FooBar));
+/// ```
+/// 
+/// Same logic applies to default values, if two or more variants have no associated value provided (i.e. they are associated with default values), the first variant will be returned
+/// 
+/// ```
+/// # use enumeration::prelude::*;
+/// enumerate! {
+///     Foo(u8; char = 'c')
+///         Bar = 'a'
+///         Baz = 'b'
+///         FooBar
+///         FooBaz
+///         BarBar = 'c'
+///         BarBaz = 'd'
+/// }
+/// 
+/// assert_eq!(Foo::from_value(&'a'), Ok(Foo::Bar));
+/// assert_eq!(Foo::from_value(&'b'), Ok(Foo::Baz));
+/// assert_eq!(Foo::from_value(&'c'), Ok(Foo::FooBar));
+/// assert_eq!(Foo::from_value(&'d'), Ok(Foo::BarBaz));
+/// assert_eq!(Foo::from_value(&Foo::DEFAULT_ASSOCIATED_VALUE), Ok(Foo::FooBar));
+/// assert_eq!(Foo::from_value(Foo::BarBar.value()), Ok(Foo::FooBar)); // because BarBar has the same value as default value, FooBar is returned instead
+/// ```
 pub trait Enumeration:
-    std::convert::TryFrom<Self::Index, Error = OutOfRangeError<Self>>
+    TryFrom<Self::Index, Error = OutOfRangeError<Self>>
     + Into<Self::Index>
     + Clone
     + Copy
@@ -73,13 +167,14 @@ pub trait Enumeration:
     const VARIANT_COUNT: Self::Index;
 
     #[inline(always)]
-    /// Same as [Enumeration::VARIANT_COUNT]
+    /// Same as [`Enumeration::VARIANT_COUNT`]
     fn count() -> Self::Index {
         Self::VARIANT_COUNT
     }
 
     #[inline(always)]
-    /// [Enumeration::VARIANT_COUNT] as usize
+    /// [`Enumeration::VARIANT_COUNT`] as usize.
+    /// Not implemented if [`Enumeration::Index`] is larger than [`usize`] (e.g. [`u128`]).
     fn len() -> usize
     where
         Self::Index: Into<usize>,
@@ -87,7 +182,8 @@ pub trait Enumeration:
         Self::count().into()
     }
 
-    /// Get the reference to the static associated constant value of the variant or the default constant value [DefaultAssociatedValue::DEFAULT_ASSOCIATED_VALUE].
+    /// Get the reference to the static associated constant value of the variant or the [default constant value](DefaultAssociatedValue::DEFAULT_ASSOCIATED_VALUE).
+    /// Implementation details is in [crate::enumerate#associated-constant-values]
     fn value(self) -> &'static Self::AssociatedValueType;
 
     #[inline(always)]
@@ -113,12 +209,14 @@ pub trait Enumeration:
     ///
     /// # Errors
     ///
-    /// If the index is out of range (zero to [Self::VARIANT_COUNT] (exclusive)), this function will return [OutOfRangeError]
+    /// If the index is out of range (< zero or >= [`Enumeration::VARIANT_COUNT`]), this function will return [`OutOfRangeError`]
     fn variant(index: Self::Index) -> Result<Self, Self::Error> {
         Self::try_from(index)
     }
 
-    /// Cast index to the respective enumeration without checking
+    /// Cast index to the respective enumeration without checking.
+    ///
+    /// May result in undefined behaviour if index is out of the enum's range
     unsafe fn variant_unchecked(index: Self::Index) -> Self;
 
     #[inline(always)]
@@ -128,7 +226,7 @@ pub trait Enumeration:
     }
 
     #[inline(always)]
-    /// Cast this variant to usize
+    /// Cast this variant to usize.
     fn to_usize(self) -> usize
     where
         Self::Index: Into<usize>,
@@ -137,7 +235,7 @@ pub trait Enumeration:
     }
 
     #[inline(always)]
-    /// Iterate through all variants
+    /// See the [Iterating](Enumeration#iterating) section
     fn iter() -> impl Iterator<Item = Self>
     where
         Self::Index: Into<usize> + From<usize>,
@@ -146,7 +244,7 @@ pub trait Enumeration:
     }
 
     #[inline(always)]
-    /// iter() but when `Index` only implements `TryFrom<usize>` as opposed to `From<usize>`
+    /// See the [Iterating](Enumeration#iterating) section
     fn try_iter() -> impl Iterator<Item = Self>
     where
         Self::Index: Into<usize> + TryFrom<usize>,
@@ -157,51 +255,101 @@ pub trait Enumeration:
     }
 }
 
-/// Returns the first variant (in the declaration order) associated with the value
+/// Returns the first variant (in the declaration order) associated with the value.
+/// More info at [Enumeration#two-way-conversion].
 pub trait FromValue: Enumeration {
-    /// Returns the first variant (in the declaration order) associated with the value
-    /// Returns error when no variant is associated with the value
+    /// Returns the first variant (in the declaration order) associated with the value.
+    /// Returns error when no variant is associated with the value.
+    /// More info at [Enumeration#two-way-conversion].
     ///
-    /// See also [Enumeration::from_value_unchecked]
+    /// See also [`FromValue::from_value_unchecked`]
     fn from_value<'a>(
         value: &'a Self::AssociatedValueType,
     ) -> Result<Self, UnknownAssociatedValueError<'a, Self>>;
-    /// Returns the first variant (in the declaration order) associated with the value
-    /// Panics when no variant is associated with the value
+
+    /// Returns the first variant (in the declaration order) associated with the value.
+    /// Panics when no variant is associated with the value.
+    /// More info at [Enumeration#two-way-conversion].
     ///
-    /// See also [Enumeration::from_value]
+    /// See also [`FromValue::from_value`]
     fn from_value_unchecked(value: &Self::AssociatedValueType) -> Self;
 }
 
-/// When the a default associated value is provided in the [crate::enumerate] macro, this trait will be implemented automatically
+/// When the a default associated value is provided in the [`crate::enumerate`] macro, this trait will be implemented automatically
 pub trait DefaultAssociatedValue: Enumeration {
-    /// The default associated value of an [Enumeration] variant
+    /// The default associated value of an [`Enumeration`] variant
     const DEFAULT_ASSOCIATED_VALUE: Self::AssociatedValueType;
 }
 
-/// This macro helps to create enum with trait [Enumeration].
+/// This macro helps to create enum with trait [`Enumeration`].
 ///
-/// You have to pass in
-/// - attributes (optional)
+/// # Syntax
+///
+/// `<code>` means optional
+///
+/// ```ignore
+/// enumerate! {
+///     <#[attribute] ... #[attribute]>
+///     <pub> <one-way> <enum> EnumName(EnumType <; <AssociatedValueAlias> AssociatedType <= DefaultValue>>)
+///         <#[attribute] ... #[attribute]>
+///         Variant1 <= Value> <,> <;>
+///         <#[attribute] ... #[attribute]>
+///         Variant2 <= Value> <,> <;>
+///         ...
+///         <#[attribute] ... #[attribute]>
+///         VariantN <= Value> <,> <;>
+/// }
+/// ```
+///
+/// Arguments (in order)
+/// - attributes of the enum (optional)
 /// - a visibility qualifier (optional)
-/// - a name
+/// - one-way keyword to disable implementation of [`FromValue`] (optional)
+/// - a name for the enum
 /// - an integer type as the underlying type
 /// - a type for associated constant values (optional)
+///     - an alias for the name of the association (before the type) (optional)
 ///     - a default value for associated constant values (optional)
 /// - at least a variant
 ///     - attributes (before variant) (optional)
-///     - with associated constant value (only if the type is given) (optional only if default is given)
+///     - with associated constant value (only if the associated type is given) (optional only if default is given)
 ///
-/// Note that commas after each variant isn't a must (`;` works too).
-/// You can also type enum before the name, i.e. `pub enum Foo(u8)` instead of `pub Foo(u8)`
+/// Notes:
+/// - Commas after each variant is not required but accepted by the macro (semicolons are also accepted).
+/// - Keyword `enum` is optional but suggested by [`official Rust syntax guidelines`](https://rust-lang.github.io/api-guidelines/macros.html#input-syntax-is-evocative-of-the-output-c-evocative)
 ///
-/// # Simple usage
 /// ```
 /// # use enumeration::enumerate;
-/// enumerate!(pub Foo(u8)
-///     Bar
-///     Baz
-/// );
+/// enumerate! {
+///     pub enum Foo(u8)
+///         Bar, // comma is optional
+///         Baz; // semicolon works too!
+/// }
+///
+/// enumerate! {
+///     FooBar(u8; char)
+///         BarBar = 'a'
+///         BazBar = 'b'
+/// }
+///
+/// enumerate! {
+///     #[doc="foobaz"]
+///     pub FooBaz(u8; &'static str = "default string")
+///         #[doc="barbaz"]
+///         BarBaz = "hello world"
+///         BazBaz // value not provided will be default value
+/// }
+/// ```
+///
+/// # Expanded macro
+///
+/// ```
+/// # use enumeration::enumerate;
+/// enumerate! {
+///     pub Foo(u8)
+///         Bar
+///         Baz
+/// }
 /// ```
 ///
 /// produces
@@ -214,45 +362,36 @@ pub trait DefaultAssociatedValue: Enumeration {
 /// }
 /// ```
 ///
-/// with [Enumeration] implementation.
-///
-/// # Syntax
-///
-/// Commas are entirely optional after each variant, you can also use semicolon instead.
-///
-/// ```
-/// # use enumeration::enumerate;
-/// enumerate!(pub enum Foo(u8) // enum is optional but suggested by official Rust syntax guidelines (https://rust-lang.github.io/api-guidelines/macros.html#input-syntax-is-evocative-of-the-output-c-evocative)
-///     Bar, // comma is optional
-///     Baz; // semicolon works too!
-/// );
-/// ```
+/// with implementation of [`Enumeration`] and some other useful traits.
 ///
 /// # Casting between index and enumeration
-/// ```
-/// # use enumeration::enumerate;
-/// enumerate!(Foo(u8)
-///     Bar
-///     Baz
-/// );
 ///
-/// # #[test]
-/// # fn test() -> Result<Foo, enumeration::OutOfRangeError> {
-/// assert_eq!(Foo::variant(0)?, Foo::Bar);
-/// assert_eq!(Foo::variant(1)?, Foo::Baz);
-/// assert_eq!(Foo::Bar.index(), 0);
-/// assert_eq!(Foo::Baz.index(), 1);
-/// assert!(Foo::variant(2).is_err());
-/// # }
 /// ```
+/// # use enumeration::prelude::*;
+/// enumerate! {
+///     Foo(u8)
+///         Bar
+///         Baz
+/// }
+///
+/// assert_eq!(Foo::variant(0), Ok(Foo::Bar));
+/// assert_eq!(Foo::variant(1), Ok(Foo::Baz));
+/// assert_eq!(Foo::Bar.to_index(), 0);
+/// assert_eq!(Foo::Baz.to_index(), 1);
+/// assert!(Foo::variant(2).is_err());
+/// ```
+///
+/// See also [`Enumeration::variant`], [`Enumeration::variant_unchecked`], [`Enumeration::to_index`]
 ///
 /// # Associated constant values
+///
 /// ```
 /// # use enumeration::enumerate;
-/// enumerate!(Foo(u8; i32)
-///     Bar = 10
-///     Baz = 20
-/// );
+/// enumerate! {
+///     Foo(u8; i32)
+///         Bar = 10
+///         Baz = 20
+/// }
 /// ```
 ///
 /// produces
@@ -263,8 +402,6 @@ pub trait DefaultAssociatedValue: Enumeration {
 ///     Baz,
 /// }
 ///
-/// # enumeration::impl_try_from_into!(u8, Foo);
-/// #
 /// impl Enumeration for Foo {
 ///     fn value(self) -> &'static i32 {
 ///         const Bar: &'static i32 = &10;
@@ -281,14 +418,17 @@ pub trait DefaultAssociatedValue: Enumeration {
 /// assert_eq!(Foo::Baz.value(), &20);
 /// ```
 ///
+/// See also [`Enumeration::value`]
+///
 /// # Default constant value
 ///
 /// ```
 /// # use enumeration::enumerate;
-/// enumerate!(Foo(u8; i32 = 20)
-///     Bar
-///     Baz = 10
-/// );
+/// enumerate! {
+///     Foo(u8; i32 = 20)
+///         Bar
+///         Baz = 10
+/// }
 /// ```
 ///
 /// produces
@@ -323,54 +463,147 @@ pub trait DefaultAssociatedValue: Enumeration {
 ///
 /// ```compile_fail
 /// # use enumeration::prelude::*;
-/// enumerate!(Foo(u8; i32)
-///     Bar
-///     Baz = 10
-/// );
+/// enumerate! {
+///     Foo(u8; i32)
+///         Bar
+///         Baz = 10
+/// }
 /// ```
 ///
 /// Note that any constant expression can be used as an associated constant.
+/// See also [`DefaultAssociatedValue::DEFAULT_ASSOCIATED_VALUE`]
 ///
 /// # Visibility
 ///
 /// ```
 /// # use enumeration::prelude::*;
-/// enumerate!(pub Foo(u8)
-///     Bar
-/// );
+/// enumerate! {
+///     pub Foo(u8)
+///         Bar
+/// }
 ///
-/// enumerate!(Baz(u8)
-///     FooBar
-/// );
+/// enumerate! {
+///     Baz(u8)
+///         FooBar
+/// }
 /// ```
 ///
 /// # Attributes
 /// Attributes can be attached to enumeration itself, default constant value and each of the variants.
-/// It's most useful for documentation.
+/// It's mostly useful for documentation.
 ///
 /// ```
 /// # use enumeration::prelude::*;
-/// enumerate!(#[doc="An enumeration named Foo"] pub Foo(u8)
-///     #[doc="Bar"] Bar
-///     #[doc="Baz"] Baz
-/// );
+/// enumerate! {
+///     #[doc="An enumeration named Foo"]
+///     pub Foo(u8)
+///         #[doc="Bar"]
+///         Bar
+///
+///         #[doc="Baz"]
+///         Baz
+/// }
 /// ```
 ///
 /// # Examples
+///
 /// ```
 /// # use enumeration::enumerate;
-/// enumerate!(pub Color(u8; &'static str)
-///     Red = "#FF0000"
-///     Blue = "#0000FF"
-///     Yellow = "#FFFF00"
-///     Cyan = "#00FFFF"
-/// );
+/// enumerate! {
+///     pub Color(u8; &'static str)
+///         Red = "#FF0000"
+///         Blue = "#0000FF"
+///         Yellow = "#FFFF00"
+///         Cyan = "#00FFFF"
+/// }
 ///
-/// enumerate!(State(u8)
-///     None
-///     Stationary
-///     Moving
-/// );
+/// enumerate! {
+///     State(u8)
+///         None
+///         Stationary
+///         Moving
+/// }
+/// ```
+///
+/// # Two-way conversion
+///
+/// This macro will implement [`FromValue`] that allows converting [`Enumeration::AssociatedValueType`] back into [`Enumeration`].
+///
+/// ```
+/// # use enumeration::prelude::*;
+/// enumerate! {
+///     # one-way
+///     Enum(u8; char)
+///         Foo = 'a'
+///         Bar = 'b'
+///         Baz = 'c'
+/// }
+///
+/// // will also generate
+///
+/// impl FromValue for Enum {
+///     fn from_value<'a>(value: &'a Self::AssociatedValueType) -> Result<Self, UnknownAssociatedValueError<'a, Self>> {
+///         match value {
+///             &'a' => Ok(Enum::Foo),
+///             &'b' => Ok(Enum::Bar),
+///             &'c' => Ok(Enum::Baz),
+///             _ => Err(UnknownAssociatedValueError(value)),
+///         }
+///     }
+///     fn from_value_unchecked(value: &Self::AssociatedValueType) -> Self {
+///         match value {
+///             &'a' => Enum::Foo,
+///             &'b' => Enum::Bar,
+///             &'c' => Enum::Baz,
+///             _ => unreachable!(),
+///         }
+///     }
+/// }
+/// ```
+///
+/// ### Opting out
+///
+/// You may not desire to have a two-way conversions in some cases like [function pointers](https://github.com/rust-lang/rust/issues/70861)
+///
+/// ```compile_fail
+/// # use enumeration::prelude::*;
+/// fn f() {}
+///
+/// enumerate! {
+///     Foo(u8; fn())
+///         Bar = (f as fn())
+/// }
+/// ```
+///
+/// You can opt out of the [`FromValue`] implementation by adding the `one-way` keyword
+///
+/// ```
+/// # use enumeration::prelude::*;
+/// fn f() {}
+///
+/// enumerate! {
+///     one-way Foo(u8; fn())
+///         Bar = (f as fn())
+/// }
+/// ```
+///
+/// More info at [Enumeration#two-way-conversion].
+/// 
+/// # Alias
+/// 
+/// You can give the associated value an alias
+/// 
+/// ```
+/// # use enumeration::prelude::*;
+/// enumerate! {
+///     Foo(u8; some_alias: char)
+///         Bar = 'a'
+///         Baz = 'b'
+/// }
+/// 
+/// // the left code and the right code is completely same
+/// assert_eq!(Foo::Bar.value(), Foo::Bar.some_alias());
+/// assert_eq!(Foo::Baz.value(), Foo::Baz.some_alias());
 /// ```
 #[macro_export]
 macro_rules! enumerate {
@@ -386,16 +619,27 @@ macro_rules! enumerate {
         $crate::enumerate!($(#[$enum_attr])* $visibility $name ($t; $associated_value_type $(= $default_value)?) $($(#[$attr])* $variant $(= $associated_value)?)*);
     };
 
-    ($(#[$enum_attr:meta])* $visibility:vis one-way enum $name:ident ($t:ident) $($(#[$attr:meta])* $variant:ident $(,)? $(;)?)*) => {
-        $crate::enumerate!($(#[$enum_attr])* $visibility one-way $name ($t; () = ()) $($(#[$attr])* $variant = ())*);
-    };
-
-    ($(#[$enum_attr:meta])* $visibility:vis one-way $name:ident ($t:ident) $($(#[$attr:meta])* $variant:ident $(,)? $(;)?)*) => {
-        $crate::enumerate!($(#[$enum_attr])* $visibility one-way $name ($t; () = ()) $($(#[$attr])* $variant = ())*);
-    };
-
     ($(#[$enum_attr:meta])* $visibility:vis one-way enum $name:ident ($t:ident; $associated_value_type:ty $(= $default_value:expr)?) $($(#[$attr:meta])* $variant:ident $(= $associated_value:expr)? $(,)? $(;)?)*) => {
         $crate::enumerate!($(#[$enum_attr])* $visibility one-way $name ($t; $associated_value_type $(= $default_value)?) $($(#[$attr])* $variant $(= $associated_value)?)*);
+    };
+
+    ($(#[$enum_attr:meta])* $visibility:vis enum $name:ident ($t:ident; $value_alias:ident : $associated_value_type:ty $(= $default_value:expr)?) $($(#[$attr:meta])* $variant:ident $(= $associated_value:expr)? $(,)? $(;)?)*) => {
+        $crate::enumerate!($(#[$enum_attr])* $visibility $name ($t; $value_alias : $associated_value_type $(= $default_value)?) $($(#[$attr])* $variant $(= $associated_value)?)*);
+    };
+
+    ($(#[$enum_attr:meta])* $visibility:vis one-way enum $name:ident ($t:ident; $value_alias:ident : $associated_value_type:ty $(= $default_value:expr)?) $($(#[$attr:meta])* $variant:ident $(= $associated_value:expr)? $(,)? $(;)?)*) => {
+        $crate::enumerate!($(#[$enum_attr])* $visibility one-way $name ($t; $value_alias : $associated_value_type $(= $default_value)?) $($(#[$attr])* $variant $(= $associated_value)?)*);
+    };
+
+    ($(#[$enum_attr:meta])* $visibility:vis one-way $name:ident ($t:ident; $value_alias:ident : $associated_value_type:ty $(= $default_value:expr)?) $($(#[$attr:meta])* $variant:ident $(= $associated_value:expr)? $(,)? $(;)?)*) => {
+        $crate::enumerate!($(#[$enum_attr])* $visibility one-way $name ($t; $associated_value_type $(= $default_value)?) $($(#[$attr])* $variant $(= $associated_value)?)*);
+        
+        impl $name where {
+            #[inline(always)]
+            fn $value_alias(self) -> &'static <Self as $crate::enumeration::Enumeration>::AssociatedValueType {
+                self.value()
+            }
+        }
     };
 
     ($(#[$enum_attr:meta])* $visibility:vis one-way $name:ident ($t:ident; $associated_value_type:ty $(= $default_value:expr)?) $($(#[$attr:meta])* $variant:ident $(= $associated_value:expr)? $(,)? $(;)?)*) => {
@@ -444,28 +688,11 @@ macro_rules! enumerate {
 
     ($(#[$enum_attr:meta])* $visibility:vis $name:ident ($t:ident; $associated_value_type:ty $(= $default_value:expr)?) $($(#[$attr:meta])* $variant:ident $(= $associated_value:expr)? $(,)? $(;)?)*) => {
         $crate::enumerate!($(#[$enum_attr])* $visibility one-way $name ($t; $associated_value_type $(= $default_value)?) $($(#[$attr])* $variant $(= $associated_value)?)*);
+        $crate::impl_from_value!($name: $associated_value_type $(= $default_value)?; $($(#[$attr])* $variant $(= $associated_value)?)*);
+    };
 
-        #[allow(non_upper_case_globals)]
-        impl $crate::enumeration::FromValue for $name {
-            #[inline(always)]
-            fn from_value<'a>(value: &'a $associated_value_type) -> ::std::result::Result<Self, $crate::enumeration::UnknownAssociatedValueError<'a, Self>> {
-                $crate::validate!($name $associated_value_type, $($default_value)?, $(($($attr)* : $variant : $($associated_value)?))*);
-
-                match value {
-                    $($variant => Ok(Self::$variant),)*
-                    _ => Err($crate::enumeration::UnknownAssociatedValueError(value)),
-                }
-            }
-
-            #[inline(always)]
-            fn from_value_unchecked(value: &$associated_value_type) -> Self {
-                $crate::validate!($name $associated_value_type, $($default_value)?, $(($($attr)* : $variant : $($associated_value)?))*);
-
-                match value {
-                    $($variant => Self::$variant,)*
-                    _ => unreachable!(),
-                }
-            }
-        }
+    ($(#[$enum_attr:meta])* $visibility:vis $name:ident ($t:ident; $value_alias:ident : $associated_value_type:ty $(= $default_value:expr)?) $($(#[$attr:meta])* $variant:ident $(= $associated_value:expr)? $(,)? $(;)?)*) => {
+        $crate::enumerate!($(#[$enum_attr])* $visibility one-way $name ($t; $value_alias : $associated_value_type $(= $default_value)?) $($(#[$attr])* $variant $(= $associated_value)?)*);
+        $crate::impl_from_value!($name: $associated_value_type $(= $default_value)?; $($(#[$attr])* $variant $(= $associated_value)?)*);
     };
 }

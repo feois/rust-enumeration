@@ -15,7 +15,7 @@ impl<T: Enumeration> Display for CastError<T> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "Unable to cast from enumeration type from {}",
+            "Unable to cast to enumeration type {}",
             type_name::<T>()
         )
     }

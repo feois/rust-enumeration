@@ -2,18 +2,25 @@
 
 //! Provides extension to rust enum
 //!
-//! This crate provides `Enumeration` trait for rust `enum` with the following features
-//! - implementation for common traits (Clone, Copy, Hash, etc.)
-//! - getting number of variants through constant `Enumeration::VARIANT_COUNT`
-//! - casting between index (of type `Enumeration::Index`) and enumeration
-//! - attaching a constant value to each of the variants
-//! - runtime representation of enumeration
+//! This crate provides [`crate::enumerate`] macro to generate rust `enum` with the following features
+//! - implementation for common traits ([`Clone`], [`Copy`], [`Hash`], etc.)
+//! - implementation of the useful trait [`enumeration::Enumeration`]
+//! - getting number of variants through constant [`enumeration::Enumeration::VARIANT_COUNT`]
+//! - casting to and from enumeration variant and enumeration index of type [`enumeration::Enumeration::Index`]
+//! - associating a constant value with each of the variants (with default value support [`enumeration::DefaultAssociatedValue`])
+//! - iterating through all variants [`enumeration::Enumeration::iter`]
+//! - two-way mapping for the variants and the associated constants [`enumeration::FromValue`]
+//! - bit-masking support
+//!     - wrapper that redefines some operators for greater bit-masking related bit operations
+//! - limited dynamic dispatch feature
+//!     - allow different [`enumeration::Enumeration<Index = T>`] to cast into [`variant::Variant<T>`]
 
 pub mod bitmask;
 pub mod enumeration;
 pub mod helper;
 pub mod variant;
 
+#[doc(hidden)]
 mod macros;
 
 /// Convenience re-export of common members
