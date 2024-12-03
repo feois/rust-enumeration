@@ -133,7 +133,7 @@
 use std::{borrow::Borrow, iter::Sum, ops::*};
 
 pub use crate::bit_enum;
-use crate::prelude::Enumeration;
+use crate::prelude::*;
 
 /// This trait is a marker trait automatically implemented for types that can be used as a bit mask.
 /// See the [module documentation](`crate::bitmask`) for more information.
@@ -213,6 +213,22 @@ impl<T: BitOperational> Bits<T> {
     /// Returns [`Bits`] with no bit turned on
     pub fn zero() -> Self {
         Default::default()
+    }
+
+    /// Iterates through bits and returns [`BitEnumeration<T>`] which corresponding bit is turned on.
+    /// Requires `T` to implement [`Copy`].
+    /// Use [`Bits::iter`] if `T` only implements [`Clone`].
+    #[inline(always)]
+    pub fn into_iter<E: BitEnumeration<T>>(self) -> impl Iterator<Item = E> where T: Copy, E::Index: Into<usize> + TryFrom<usize> {
+        E::try_iter().filter(move |&e| self.has(e))
+    }
+
+    /// Iterates through bits and returns [`BitEnumeration<T>`] which corresponding bit is turned on
+    /// Requires `T` to implement [`Clone`].
+    /// Use [`Bits::into_iter`] if `T` implements [`Copy`].
+    #[inline(always)]
+    pub fn iter<'a, E: BitEnumeration<T>>(&'a self) -> impl Iterator<Item = E> + 'a where T: Clone, E::Index: Into<usize> + TryFrom<usize> {
+        E::try_iter().filter(|&e| self.clone().has(e))
     }
 }
 
@@ -346,13 +362,13 @@ impl<T: BitOperational, U: Borrow<T>> FromIterator<U> for Bits<T> {
 
 /// Helper trait for [`Enumeration`] created with [`crate::bit_enum`].
 /// See the [module documentation](`crate::bitmask`) for more information.
-pub trait BitEnumeration<T: BitOperational + Copy>:
+pub trait BitEnumeration<T: BitOperational + Clone>:
     Enumeration<AssociatedValueType = Bits<T>> + Borrow<T>
 {
     #[inline(always)]
     /// returns [`Bits`]
     fn bit(&self) -> Bits<T> {
-        self.value_copy()
+        self.value_clone()
     }
 
     /// returns [`Bits::zero`]
@@ -369,9 +385,21 @@ pub trait BitEnumeration<T: BitOperational + Copy>:
     {
         Self::try_iter().sum()
     }
+
+    /// converts `T` to [`BitEnumeration<T>`], returns [`None`] when bit is out of range
+    #[inline(always)]
+    fn from_bit(bit: T) -> Option<Self> where Self: FromValue {
+        Self::from_value(&Bits(bit)).ok()
+    }
+
+    /// converts `T` to [`BitEnumeration<T>`], panics when bit is out of range
+    #[inline(always)]
+    fn from_bit_unchecked(bit: T) -> Self where Self: FromValue {
+        Self::from_value_unchecked(&Bits(bit))
+    }
 }
 
-impl<T: BitOperational + Copy, E: Enumeration<AssociatedValueType = Bits<T>> + Borrow<T>> BitEnumeration<T> for E {}
+impl<T: BitOperational + Clone, E: Enumeration<AssociatedValueType = Bits<T>> + Borrow<T>> BitEnumeration<T> for E {}
 
 #[macro_export]
 /// A specialized version of [`crate::enumerate`], it requires a non-optional associated value type (currently only integers are supported) that are automatically defined for each variant

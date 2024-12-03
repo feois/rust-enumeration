@@ -235,6 +235,17 @@ fn test_bit_enum() {
     assert_eq!(TestBitEnum::Foo.bit(), Bits(1 << 0));
     assert_eq!(TestBitEnum::Bar.bit(), Bits(1 << 1));
     assert_eq!(TestBitEnum::Baz.bit(), Bits(1 << 2));
+    assert_eq!(TestBitEnum::from_bit(1 << 0), Some(TestBitEnum::Foo));
+    assert_eq!(TestBitEnum::from_bit(1 << 1), Some(TestBitEnum::Bar));
+    assert_eq!(TestBitEnum::from_bit(1 << 2), Some(TestBitEnum::Baz));
+    assert_eq!(TestBitEnum::from_bit(1 << 3), None);
+    assert_eq!(TestBitEnum::from_bit((1 << 0) + (1 << 1)), None);
+}
+
+#[test]
+#[should_panic]
+fn test_from_bit_unchecked() {
+    TestBitEnum::from_bit_unchecked(1 << 3);
 }
 
 #[test]
@@ -308,6 +319,18 @@ fn test_bits_struct() {
     assert!(mask.has_all([TestBitEnum::Foo, TestBitEnum::Foo, TestBitEnum::Foo]));
     assert!(mask.has_all([TestBitEnum::Foo, TestBitEnum::Bar]));
     assert!(!mask.has_all([TestBitEnum::Foo, TestBitEnum::Bar, TestBitEnum::Baz]));
+
+    let mut i = mask.into_iter::<TestBitEnum>();
+
+    assert_eq!(i.next(), Some(TestBitEnum::Foo));
+    assert_eq!(i.next(), Some(TestBitEnum::Bar));
+    assert_eq!(i.next(), None);
+
+    let mut i = mask.iter::<TestBitEnum>();
+
+    assert_eq!(i.next(), Some(TestBitEnum::Foo));
+    assert_eq!(i.next(), Some(TestBitEnum::Bar));
+    assert_eq!(i.next(), None);
 }
 
 #[test]
