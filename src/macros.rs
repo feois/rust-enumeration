@@ -4,6 +4,7 @@ macro_rules! impl_try_from_into {
         impl std::convert::TryFrom<$t> for $name {
             type Error = $crate::enumeration::OutOfRangeError<$name>;
 
+            #[allow(clippy::manual_range_contains)]
             #[inline(always)]
             fn try_from(value: $t) -> Result<Self, $crate::enumeration::OutOfRangeError<$name>> {
                 #[allow(unused_comparisons)]
